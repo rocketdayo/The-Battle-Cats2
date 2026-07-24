@@ -1,0 +1,6 @@
+{
+  "name": "にゃんこ大戦争2",
+  "description": "オリジナルのにゃんこ系キャラクターを召喚・進化させて敵の城を破る本格タワーディフェンスゲーム",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

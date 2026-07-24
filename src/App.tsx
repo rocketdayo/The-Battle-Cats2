@@ -1,0 +1,816 @@
+import React, { useState, useEffect } from 'react';
+import {
+  ActiveBattleUnit,
+  CatUnitData,
+  FloatingText,
+  ParticleEffect,
+  PlayerData,
+  StageData,
+  GameView,
+} from './types';
+import { CAT_UNITS, PASSIVE_SKILLS } from './data/units';
+import { ENEMIES } from './data/enemies';
+import { HomeBase } from './components/HomeBase';
+import { DeckBuilder } from './components/DeckBuilder';
+import { PowerUp } from './components/PowerUp';
+import { BattleCanvas } from './components/BattleCanvas';
+import { BattleUI } from './components/BattleUI';
+import { StageSelect } from './components/StageSelect';
+import { EvolutionModal } from './components/EvolutionModal';
+import { GachaModal } from './components/GachaModal';
+import { CodexModal } from './components/CodexModal';
+import { LabModal } from './components/LabModal';
+import { AiCatGeneratorModal } from './components/AiCatGeneratorModal';
+import { soundManager } from './utils/audio';
+
+const INITIAL_PLAYER_DATA: PlayerData = {
+  catFood: 300,
+  xp: 1500,
+  energy: 100,
+  maxEnergy: 100,
+  lastEnergyRefillTimestamp: Date.now(),
+  clearedStages: [],
+  unlockedUnits: {
+    u_chibi: { unitId: 'u_chibi', level: 1, currentStage: 1, equippedSkills: [] },
+    u_shield: { unitId: 'u_shield', level: 1, currentStage: 1, equippedSkills: [] },
+    u_ninja: { unitId: 'u_ninja', level: 1, currentStage: 1, equippedSkills: [] },
+  },
+  equippedDeck: ['u_chibi', 'u_shield', 'u_ninja'],
+  cannonLevel: 1,
+  workerCatLimitLevel: 1,
+  evolutionStones: 5,
+};
+
+export default function App() {
+  // --- Persistent Storage ---
+  const [playerData, setPlayerData] = useState<PlayerData>(() => {
+    const saved = localStorage.getItem('nyanko_war_2_save');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse save data', e);
+      }
+    }
+    return INITIAL_PLAYER_DATA;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('nyanko_war_2_save', JSON.stringify(playerData));
+  }, [playerData]);
+
+  // Sound Mute Toggle
+  const [isMuted, setIsMuted] = useState(false);
+  const handleToggleMute = () => {
+    const next = !isMuted;
+    setIsMuted(next);
+    soundManager.setMuted(next);
+  };
+
+  // --- Views & Modals ---
+  const [currentView, setCurrentView] = useState<GameView>('HOME');
+  const [selectedUnitForEvol, setSelectedUnitForEvol] = useState<CatUnitData | null>(null);
+
+  // --- Battle State ---
+  const [activeStage, setActiveStage] = useState<StageData | null>(null);
+  const [playerCastleHp, setPlayerCastleHp] = useState(1000);
+  const [playerCastleMaxHp, setPlayerCastleMaxHp] = useState(1000);
+  const [enemyCastleHp, setEnemyCastleHp] = useState(1000);
+  const [enemyCastleMaxHp, setEnemyCastleMaxHp] = useState(1000);
+
+  const [money, setMoney] = useState(100);
+  const [workerCatLevel, setWorkerCatLevel] = useState(1);
+  const [cannonChargePercent, setCannonChargePercent] = useState(0);
+  const [isCannonFiring, setIsCannonFiring] = useState(false);
+  const [cannonLaserX, setCannonLaserX] = useState<number | null>(null);
+
+  const [activeUnits, setActiveUnits] = useState<ActiveBattleUnit[]>([]);
+  const [unitCooldowns, setUnitCooldowns] = useState<Record<string, number>>({});
+  const [floatingTexts, setFloatingTexts] = useState<FloatingText[]>([]);
+  const [particles, setParticles] = useState<ParticleEffect[]>([]);
+
+  const [speedMultiplier, setSpeedMultiplier] = useState<number>(1);
+  const [isAutoBattle, setIsAutoBattle] = useState<boolean>(false);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+
+  const [battleResult, setBattleResult] = useState<'VICTORY' | 'DEFEAT' | null>(null);
+  const [battleTimerSeconds, setBattleTimerSeconds] = useState(0);
+
+  // Auto Energy Refill timer
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPlayerData((prev) => {
+        if (prev.energy >= prev.maxEnergy) return prev;
+        return { ...prev, energy: Math.min(prev.maxEnergy, prev.energy + 1) };
+      });
+    }, 15000); // 1 energy per 15s
+    return () => clearInterval(interval);
+  }, []);
+
+  // --- Start Battle Handler ---
+  const handleStartBattle = (stage: StageData) => {
+    if (playerData.energy < stage.energyCost) return;
+
+    // Deduct Energy
+    setPlayerData((prev) => ({
+      ...prev,
+      energy: prev.energy - stage.energyCost,
+    }));
+
+    setActiveStage(stage);
+    setPlayerCastleHp(stage.playerCastleHp);
+    setPlayerCastleMaxHp(stage.playerCastleHp);
+    setEnemyCastleHp(stage.enemyCastleHp);
+    setEnemyCastleMaxHp(stage.enemyCastleHp);
+
+    setMoney(100);
+    setWorkerCatLevel(1);
+    setCannonChargePercent(0);
+    setIsCannonFiring(false);
+    setCannonLaserX(null);
+
+    setActiveUnits([]);
+    setUnitCooldowns({});
+    setFloatingTexts([]);
+    setParticles([]);
+
+    setBattleResult(null);
+    setBattleTimerSeconds(0);
+    setIsPaused(false);
+
+    setCurrentView('BATTLE');
+    soundManager.startBgm();
+  };
+
+  // --- Main Battle Simulation Loop ---
+  useEffect(() => {
+    if (currentView !== 'BATTLE' || isPaused || battleResult !== null) return;
+
+    const interval = setInterval(() => {
+      const dt = 0.05 * speedMultiplier;
+      setBattleTimerSeconds((prev) => prev + dt);
+
+      // 1. Update Money & Cannon Charge
+      const maxMoney = 100 + (workerCatLevel - 1) * 200;
+      setMoney((prev) => Math.min(maxMoney, prev + dt * (18 + workerCatLevel * 12)));
+      setCannonChargePercent((prev) => Math.min(100, prev + dt * 4));
+
+      // 2. Update Unit Cooldowns
+      setUnitCooldowns((prev) => {
+        const next: Record<string, number> = {};
+        for (const [id, cd] of Object.entries(prev) as [string, number][]) {
+          if (cd > dt) next[id] = cd - dt;
+        }
+        return next;
+      });
+
+      // 3. Enemy Spawning Logic
+      if (activeStage) {
+        activeStage.enemySpawns.forEach((spawn) => {
+          const enemy = ENEMIES[spawn.enemyId];
+          if (!enemy) return;
+
+          // Check if castle HP trigger
+          const castleHpPct = (enemyCastleHp / enemyCastleMaxHp) * 100;
+          const isHpTriggered =
+            spawn.castleHpPercentTrigger && castleHpPct <= spawn.castleHpPercentTrigger;
+          const isTimeTriggered = Math.abs(battleTimerSeconds - spawn.spawnTimeSeconds) < dt;
+
+          if (isTimeTriggered || isHpTriggered) {
+            spawnEnemyUnit(enemy);
+          }
+        });
+      }
+
+      // 4. Update Units Mechanics (Movement, Attack, Knockback)
+      setActiveUnits((prevUnits) => {
+        const updated = prevUnits.map((unit) => ({ ...unit }));
+
+        updated.forEach((unit) => {
+          if (unit.attackCooldown > 0) unit.attackCooldown -= dt;
+          if (unit.knockbackTimer > 0) {
+            unit.knockbackTimer -= dt;
+            if (unit.knockbackTimer <= 0) unit.isKnockedBack = false;
+          }
+          unit.walkFrame += 1;
+
+          const isPlayer = unit.side === 'player';
+          const targetCastleX = isPlayer ? 1000 : 0;
+
+          const enemiesInFront = updated.filter((other) => {
+            if (other.side === unit.side) return false;
+            return isPlayer ? other.x > unit.x : other.x < unit.x;
+          });
+
+          enemiesInFront.sort((a, b) => (isPlayer ? a.x - b.x : b.x - a.x));
+
+          const closestEnemy = enemiesInFront[0];
+          const distToEnemy = closestEnemy
+            ? Math.abs(closestEnemy.x - unit.x)
+            : Math.abs(targetCastleX - unit.x);
+
+          if (distToEnemy <= unit.attackRange) {
+            if (unit.attackCooldown <= 0) {
+              unit.attackCooldown = unit.attackSpeedSeconds;
+              unit.attackAnimTimer = 10;
+
+              if (closestEnemy && Math.abs(closestEnemy.x - unit.x) <= unit.attackRange) {
+                closestEnemy.hp -= unit.attack;
+                closestEnemy.currentKnockbacks += 1;
+
+                if (closestEnemy.currentKnockbacks % closestEnemy.knockbackCount === 0) {
+                  closestEnemy.isKnockedBack = true;
+                  closestEnemy.knockbackTimer = 0.4;
+                  closestEnemy.x += isPlayer ? 40 : -40;
+                  closestEnemy.x = Math.max(0, Math.min(1000, closestEnemy.x));
+                  soundManager.playKnockback();
+                } else {
+                  soundManager.playHit();
+                }
+
+                addFloatingText(closestEnemy.x, unit.attack.toFixed(0), isPlayer ? '#facc15' : '#ef4444');
+              } else {
+                if (isPlayer) {
+                  setEnemyCastleHp((hp) => Math.max(0, hp - unit.attack));
+                  addFloatingText(1000, unit.attack.toFixed(0), '#facc15');
+                } else {
+                  setPlayerCastleHp((hp) => Math.max(0, hp - unit.attack));
+                  addFloatingText(0, unit.attack.toFixed(0), '#ef4444');
+                }
+                soundManager.playHit();
+              }
+            }
+          } else {
+            if (!unit.isKnockedBack) {
+              const moveDist = unit.movementSpeed * dt * 8;
+              unit.x += isPlayer ? moveDist : -moveDist;
+              unit.x = Math.max(0, Math.min(1000, unit.x));
+            }
+          }
+        });
+
+        return updated.filter((u) => u.hp > 0);
+      });
+
+      // 5. Check Win / Loss Conditions
+      if (enemyCastleHp <= 0 && battleResult === null) {
+        handleVictory();
+      } else if (playerCastleHp <= 0 && battleResult === null) {
+        handleDefeat();
+      }
+
+      // 6. Auto Battle AI Behavior
+      if (isAutoBattle && activeStage) {
+        const upgradeCost = Math.floor(100 * Math.pow(1.3, workerCatLevel - 1));
+        if (money >= upgradeCost && workerCatLevel < 8) {
+          handleUpgradeWorkerCat();
+        } else {
+          playerData.equippedDeck.forEach((unitId) => {
+            const unit = CAT_UNITS.find((u) => u.id === unitId);
+            if (
+              unit &&
+              money >= unit.deployCost &&
+              (!unitCooldowns[unit.id] || unitCooldowns[unit.id] <= 0)
+            ) {
+              handleDeployUnit(unitId);
+            }
+          });
+        }
+      }
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [
+    currentView,
+    isPaused,
+    speedMultiplier,
+    battleResult,
+    money,
+    workerCatLevel,
+    activeStage,
+    enemyCastleHp,
+    playerCastleHp,
+    isAutoBattle,
+    unitCooldowns,
+  ]);
+
+  // Spawn Enemy Unit Helper
+  const spawnEnemyUnit = (enemy: typeof ENEMIES[string]) => {
+    const instanceId = `e_${Date.now()}_${Math.random()}`;
+    const newEnemy: ActiveBattleUnit = {
+      instanceId,
+      unitId: enemy.id,
+      side: 'enemy',
+      x: 1000,
+      y: (Math.random() - 0.5) * 20,
+      hp: enemy.hp,
+      maxHp: enemy.hp,
+      attack: enemy.attack,
+      attackRange: enemy.attackRange,
+      movementSpeed: enemy.movementSpeed,
+      attackCooldown: 0,
+      attackSpeedSeconds: enemy.attackSpeedSeconds,
+      isAreaAttack: enemy.isAreaAttack,
+      knockbackCount: 2,
+      currentKnockbacks: 0,
+      isKnockedBack: false,
+      knockbackTimer: 0,
+      sizeScale: enemy.sizeScale,
+      color: enemy.color,
+      secondaryColor: enemy.secondaryColor,
+      shape: enemy.shape,
+      name: enemy.name,
+      level: 1,
+      isBoss: enemy.isBoss,
+      walkFrame: 0,
+      attackAnimTimer: 0,
+      hitEffectTimer: 0,
+    };
+    setActiveUnits((prev) => [...prev, newEnemy]);
+  };
+
+  // --- Deploy Unit Handler ---
+  const handleDeployUnit = (unitId: string) => {
+    const baseUnit = CAT_UNITS.find((u) => u.id === unitId);
+    if (!baseUnit || money < baseUnit.deployCost) return;
+
+    const progress = playerData.unlockedUnits[unitId] || { level: 1, currentStage: 1 };
+    let evolutionData = baseUnit.evolutions.stage1;
+    if (progress.currentStage === 2) {
+      evolutionData = baseUnit.evolutions.stage2;
+    } else if (progress.currentStage === 3 && baseUnit.evolutions.stage3Branches) {
+      const branch = progress.selectedBranch || 'branchA';
+      evolutionData = baseUnit.evolutions.stage3Branches[branch];
+    }
+
+    const levelMult = Math.pow(1.1, progress.level - 1);
+    let atkMult = evolutionData.attackMultiplier * levelMult;
+    let hpMult = evolutionData.hpMultiplier * levelMult;
+    let speedMult = evolutionData.speedMultiplier;
+
+    progress.equippedSkills?.forEach((skId) => {
+      const sk = PASSIVE_SKILLS.find((s) => s.id === skId);
+      if (sk) {
+        if (sk.bonusType === 'attack') atkMult *= 1 + sk.value;
+        if (sk.bonusType === 'hp') hpMult *= 1 + sk.value;
+        if (sk.bonusType === 'speed') speedMult *= 1 + sk.value;
+      }
+    });
+
+    setMoney((prev) => prev - baseUnit.deployCost);
+    setUnitCooldowns((prev) => ({ ...prev, [unitId]: baseUnit.cooldownSeconds }));
+
+    const newUnit: ActiveBattleUnit = {
+      instanceId: `p_${Date.now()}_${Math.random()}`,
+      unitId,
+      side: 'player',
+      x: 0,
+      y: (Math.random() - 0.5) * 20,
+      hp: Math.floor(baseUnit.baseHp * hpMult),
+      maxHp: Math.floor(baseUnit.baseHp * hpMult),
+      attack: Math.floor(baseUnit.baseAttack * atkMult),
+      attackRange: baseUnit.attackRange,
+      movementSpeed: baseUnit.movementSpeed * speedMult,
+      attackCooldown: 0,
+      attackSpeedSeconds: baseUnit.attackSpeedSeconds,
+      isAreaAttack: baseUnit.isAreaAttack,
+      knockbackCount: baseUnit.knockbackCount,
+      currentKnockbacks: 0,
+      isKnockedBack: false,
+      knockbackTimer: 0,
+      sizeScale: 1.0,
+      color: evolutionData.color,
+      secondaryColor: evolutionData.secondaryColor,
+      shape: 'cat',
+      name: evolutionData.name,
+      level: progress.level,
+      walkFrame: 0,
+      attackAnimTimer: 0,
+      hitEffectTimer: 0,
+    };
+
+    setActiveUnits((prev) => [...prev, newUnit]);
+  };
+
+  // --- Worker Cat Upgrade Handler ---
+  const handleUpgradeWorkerCat = () => {
+    const cost = Math.floor(100 * Math.pow(1.3, workerCatLevel - 1));
+    if (money >= cost && workerCatLevel < 8) {
+      setMoney((prev) => prev - cost);
+      setWorkerCatLevel((prev) => prev + 1);
+    }
+  };
+
+  // --- Fire Cannon Handler ---
+  const handleFireCannon = () => {
+    if (cannonChargePercent < 100) return;
+    setCannonChargePercent(0);
+    setIsCannonFiring(true);
+    setCannonLaserX(1000);
+
+    setActiveUnits((prev) =>
+      prev.map((unit) => {
+        if (unit.side === 'enemy') {
+          return {
+            ...unit,
+            hp: Math.max(0, unit.hp - 500),
+            isKnockedBack: true,
+            knockbackTimer: 0.6,
+            x: Math.min(1000, unit.x + 80),
+          };
+        }
+        return unit;
+      })
+    );
+
+    setEnemyCastleHp((hp) => Math.max(0, hp - 300));
+
+    setTimeout(() => {
+      setIsCannonFiring(false);
+      setCannonLaserX(null);
+    }, 800);
+  };
+
+  const addFloatingText = (x: number, text: string, color: string) => {
+    setFloatingTexts((prev) => [
+      ...prev,
+      {
+        id: `ft_${Date.now()}_${Math.random()}`,
+        x,
+        y: -10,
+        text,
+        color,
+        opacity: 1.0,
+        scale: 1.2,
+        vy: -1.5,
+      },
+    ]);
+  };
+
+  const handleVictory = () => {
+    if (!activeStage) return;
+    setBattleResult('VICTORY');
+    soundManager.stopBgm();
+    soundManager.playVictory();
+
+    setPlayerData((prev) => {
+      const isFirstClear = !prev.clearedStages.includes(activeStage.id);
+      return {
+        ...prev,
+        clearedStages: Array.from(new Set([...prev.clearedStages, activeStage.id])),
+        catFood: prev.catFood + (isFirstClear ? activeStage.firstClearRewardCatFood : 20),
+        xp: prev.xp + (isFirstClear ? activeStage.firstClearRewardXp : 800),
+        evolutionStones: prev.evolutionStones + 1,
+      };
+    });
+  };
+
+  const handleDefeat = () => {
+    setBattleResult('DEFEAT');
+    soundManager.stopBgm();
+    soundManager.playDefeat();
+  };
+
+  // Unit Operations
+  const handleLevelUpUnit = (unitId: string, costXp: number) => {
+    if (playerData.xp < costXp) return;
+    setPlayerData((prev) => ({
+      ...prev,
+      xp: prev.xp - costXp,
+      unlockedUnits: {
+        ...prev.unlockedUnits,
+        [unitId]: {
+          ...prev.unlockedUnits[unitId],
+          level: (prev.unlockedUnits[unitId]?.level || 1) + 1,
+        },
+      },
+    }));
+  };
+
+  const handleEvolveStage2 = (unitId: string, costXp: number) => {
+    if (playerData.xp < costXp) return;
+    setPlayerData((prev) => ({
+      ...prev,
+      xp: prev.xp - costXp,
+      unlockedUnits: {
+        ...prev.unlockedUnits,
+        [unitId]: {
+          ...prev.unlockedUnits[unitId],
+          currentStage: 2,
+        },
+      },
+    }));
+  };
+
+  const handleSelectBranchStage3 = (
+    unitId: string,
+    branch: 'branchA' | 'branchB',
+    costXp: number,
+    stonesNeeded: number
+  ) => {
+    if (playerData.xp < costXp || playerData.evolutionStones < stonesNeeded) return;
+    setPlayerData((prev) => ({
+      ...prev,
+      xp: prev.xp - costXp,
+      evolutionStones: prev.evolutionStones - stonesNeeded,
+      unlockedUnits: {
+        ...prev.unlockedUnits,
+        [unitId]: {
+          ...prev.unlockedUnits[unitId],
+          currentStage: 3,
+          selectedBranch: branch,
+        },
+      },
+    }));
+  };
+
+  const handleEquipSkill = (unitId: string, skillId: string) => {
+    setPlayerData((prev) => {
+      const current = prev.unlockedUnits[unitId]?.equippedSkills || [];
+      const isAlready = current.includes(skillId);
+      let updated = [...current];
+      if (isAlready) {
+        updated = updated.filter((s) => s !== skillId);
+      } else {
+        if (updated.length >= 2) updated.shift();
+        updated.push(skillId);
+      }
+      return {
+        ...prev,
+        unlockedUnits: {
+          ...prev.unlockedUnits,
+          [unitId]: {
+            ...prev.unlockedUnits[unitId],
+            equippedSkills: updated,
+          },
+        },
+      };
+    });
+  };
+
+  const handlePerformGacha = (cost: number, count: number) => {
+    setPlayerData((prev) => ({ ...prev, catFood: prev.catFood - cost }));
+
+    const pulledUnits: CatUnitData[] = [];
+    let rewardsXp = 0;
+    let rewardsStones = 0;
+
+    for (let i = 0; i < count; i++) {
+      const randomIndex = Math.floor(Math.random() * CAT_UNITS.length);
+      const picked = CAT_UNITS[randomIndex];
+      pulledUnits.push(picked);
+
+      if (playerData.unlockedUnits[picked.id]) {
+        rewardsXp += 800;
+        rewardsStones += 1;
+      }
+    }
+
+    setPlayerData((prev) => {
+      const updatedUnits = { ...prev.unlockedUnits };
+      pulledUnits.forEach((u) => {
+        if (!updatedUnits[u.id]) {
+          updatedUnits[u.id] = { unitId: u.id, level: 1, currentStage: 1, equippedSkills: [] };
+        }
+      });
+
+      return {
+        ...prev,
+        xp: prev.xp + rewardsXp,
+        evolutionStones: prev.evolutionStones + rewardsStones,
+        unlockedUnits: updatedUnits,
+      };
+    });
+
+    return { pulledUnits, rewardsXp, rewardsStones };
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col items-center justify-center p-2 md:p-6 select-none">
+      {/* Main Game Screen View Controller */}
+      <main className="w-full max-w-5xl my-2 flex-1 flex flex-col justify-center">
+        {/* 1. HOME (ネコ基地) */}
+        {currentView === 'HOME' && (
+          <HomeBase
+            playerData={playerData}
+            onNavigate={(view) => setCurrentView(view)}
+            isMuted={isMuted}
+            onToggleMute={handleToggleMute}
+          />
+        )}
+
+        {/* 2. STAGE SELECT (ステージ選択マップ) */}
+        {currentView === 'STAGE_SELECT' && (
+          <StageSelect
+            playerData={playerData}
+            onSelectStage={handleStartBattle}
+            onOpenEvolution={(unit) => {
+              setSelectedUnitForEvol(unit);
+              setCurrentView('EVOLUTION');
+            }}
+            onOpenGacha={() => setCurrentView('GACHA')}
+            onOpenCodex={() => setCurrentView('CODEX')}
+            onOpenLab={() => setCurrentView('LAB')}
+            onOpenAiGenerator={() => setCurrentView('AI_CAT')}
+            onOpenDeckBuilder={() => setCurrentView('DECK_BUILDER')}
+            onBackToHome={() => setCurrentView('HOME')}
+          />
+        )}
+
+        {/* 3. DECK BUILDER (キャラクター編成) */}
+        {currentView === 'DECK_BUILDER' && (
+          <DeckBuilder
+            playerData={playerData}
+            onUpdateDeck={(newDeck) =>
+              setPlayerData((prev) => ({ ...prev, equippedDeck: newDeck }))
+            }
+            onOpenEvolution={(unit) => {
+              setSelectedUnitForEvol(unit);
+              setCurrentView('EVOLUTION');
+            }}
+            onBackToHome={() => setCurrentView('HOME')}
+          />
+        )}
+
+        {/* 4. POWER UP (パワーアップ/強化) */}
+        {currentView === 'POWER_UP' && (
+          <PowerUp
+            playerData={playerData}
+            onLevelUpUnit={handleLevelUpUnit}
+            onOpenEvolution={(unit) => {
+              setSelectedUnitForEvol(unit);
+              setCurrentView('EVOLUTION');
+            }}
+            onBackToHome={() => setCurrentView('HOME')}
+          />
+        )}
+
+        {/* 5. BATTLE (戦闘進行キャンバス) */}
+        {currentView === 'BATTLE' && activeStage && (
+          <div className="w-full space-y-4">
+            <BattleCanvas
+              stage={activeStage}
+              units={activeUnits}
+              playerCastleHp={playerCastleHp}
+              playerCastleMaxHp={playerCastleMaxHp}
+              enemyCastleHp={enemyCastleHp}
+              enemyCastleMaxHp={enemyCastleMaxHp}
+              cannonChargePercent={cannonChargePercent}
+              isCannonFiring={isCannonFiring}
+              cannonLaserX={cannonLaserX}
+              speedMultiplier={speedMultiplier}
+              isPaused={isPaused}
+              floatingTexts={floatingTexts}
+              particles={particles}
+            />
+
+            <BattleUI
+              stage={activeStage}
+              money={money}
+              maxMoney={100 + (workerCatLevel - 1) * 200}
+              workerCatLevel={workerCatLevel}
+              workerUpgradeCost={Math.floor(100 * Math.pow(1.3, workerCatLevel - 1))}
+              cannonChargePercent={cannonChargePercent}
+              speedMultiplier={speedMultiplier}
+              isAutoBattle={isAutoBattle}
+              isPaused={isPaused}
+              equippedUnits={CAT_UNITS.filter((u) => playerData.equippedDeck.includes(u.id))}
+              playerProgress={playerData.unlockedUnits}
+              unitCooldowns={unitCooldowns}
+              onDeployUnit={handleDeployUnit}
+              onUpgradeWorkerCat={handleUpgradeWorkerCat}
+              onFireCannon={handleFireCannon}
+              onToggleSpeed={() =>
+                setSpeedMultiplier((prev) => (prev === 1 ? 2 : prev === 2 ? 3 : 1))
+              }
+              onToggleAuto={() => setIsAutoBattle((prev) => !prev)}
+              onTogglePause={() => setIsPaused((prev) => !prev)}
+              onRetreat={() => {
+                soundManager.stopBgm();
+                setCurrentView('STAGE_SELECT');
+              }}
+            />
+          </div>
+        )}
+      </main>
+
+      {/* --- Victory / Defeat Overlay Modals --- */}
+      {battleResult && activeStage && (
+        <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl bg-slate-900 border-2 border-amber-500 p-6 text-center space-y-5 shadow-2xl animate-fadeIn">
+            {battleResult === 'VICTORY' ? (
+              <>
+                <div className="text-6xl animate-bounce">🏆🐱</div>
+                <h2 className="text-2xl font-black text-amber-400">完全勝利！城を攻め落とした！</h2>
+                <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2 text-xs font-bold text-slate-200">
+                  <p className="text-amber-300">獲得猫缶: +{activeStage.firstClearRewardCatFood}</p>
+                  <p className="text-amber-400">獲得XP: +{activeStage.firstClearRewardXp.toLocaleString()} XP</p>
+                  <p className="text-cyan-400">獲得素材: +1 進化石</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-6xl">💀😿</div>
+                <h2 className="text-2xl font-black text-rose-500">敗北... にゃんこ城陥落</h2>
+                <p className="text-xs text-slate-400">
+                  キャラクターをレベルアップ・進化させてリベンジしよう！
+                </p>
+              </>
+            )}
+
+            <button
+              onClick={() => {
+                soundManager.stopBgm();
+                setBattleResult(null);
+                setCurrentView('STAGE_SELECT');
+              }}
+              className="w-full py-3.5 rounded-2xl font-black bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-xl transition-all cursor-pointer"
+            >
+              ステージ選択へ戻る
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Sub Modals */}
+      {currentView === 'EVOLUTION' && selectedUnitForEvol && (
+        <EvolutionModal
+          unit={selectedUnitForEvol}
+          progress={
+            playerData.unlockedUnits[selectedUnitForEvol.id] || {
+              level: 1,
+              currentStage: 1,
+              equippedSkills: [],
+            }
+          }
+          playerXp={playerData.xp}
+          playerStones={playerData.evolutionStones}
+          onClose={() => setCurrentView('HOME')}
+          onLevelUp={handleLevelUpUnit}
+          onEvolveStage2={handleEvolveStage2}
+          onSelectBranchStage3={handleSelectBranchStage3}
+          onEquipSkill={handleEquipSkill}
+        />
+      )}
+
+      {currentView === 'GACHA' && (
+        <GachaModal
+          catFood={playerData.catFood}
+          unlockedUnitIds={Object.keys(playerData.unlockedUnits)}
+          onClose={() => setCurrentView('HOME')}
+          onPerformGacha={handlePerformGacha}
+        />
+      )}
+
+      {currentView === 'CODEX' && (
+        <CodexModal
+          playerProgress={playerData.unlockedUnits}
+          onClose={() => setCurrentView('HOME')}
+        />
+      )}
+
+      {currentView === 'LAB' && (
+        <LabModal
+          xp={playerData.xp}
+          catFood={playerData.catFood}
+          stones={playerData.evolutionStones}
+          playerData={playerData}
+          onImportSave={(newSave) => setPlayerData(newSave)}
+          onClose={() => setCurrentView('HOME')}
+          onConvertStonesToXp={(amt) => {
+            setPlayerData((prev) => ({
+              ...prev,
+              evolutionStones: prev.evolutionStones - amt,
+              xp: prev.xp + amt * 5000,
+            }));
+          }}
+          onRefillEnergy={() => {
+            setPlayerData((prev) => ({
+              ...prev,
+              catFood: prev.catFood - 30,
+              energy: prev.maxEnergy,
+            }));
+          }}
+        />
+      )}
+
+      {currentView === 'AI_CAT' && (
+        <AiCatGeneratorModal
+          onClose={() => setCurrentView('HOME')}
+          onRewardXpAndCatFood={(xp, cf) => {
+            setPlayerData((prev) => ({
+              ...prev,
+              xp: prev.xp + xp,
+              catFood: prev.catFood + cf,
+            }));
+          }}
+        />
+      )}
+
+      {/* Footer */}
+      <footer className="w-full max-w-5xl text-center pt-2 text-[11px] text-slate-500">
+        にゃんこ大戦争2 - 本家再現ホーム画面＆AI新種創作
+      </footer>
+    </div>
+  );
+}

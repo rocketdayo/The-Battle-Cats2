@@ -1,0 +1,251 @@
+import React from 'react';
+import { CatUnitData, PlayerUnitProgress, StageData } from '../types';
+import { Zap, Play, Pause, FastForward, Bot, ShieldAlert, ArrowUpCircle } from 'lucide-react';
+import { soundManager } from '../utils/audio';
+
+interface BattleUIProps {
+  stage: StageData;
+  money: number;
+  maxMoney: number;
+  workerCatLevel: number;
+  workerUpgradeCost: number;
+  cannonChargePercent: number; // 0-100
+  speedMultiplier: number;
+  isAutoBattle: boolean;
+  isPaused: boolean;
+  equippedUnits: CatUnitData[];
+  playerProgress: Record<string, PlayerUnitProgress>;
+  unitCooldowns: Record<string, number>; // remaining seconds
+  onDeployUnit: (unitId: string) => void;
+  onUpgradeWorkerCat: () => void;
+  onFireCannon: () => void;
+  onToggleSpeed: () => void;
+  onToggleAuto: () => void;
+  onTogglePause: () => void;
+  onRetreat: () => void;
+}
+
+export const BattleUI: React.FC<BattleUIProps> = ({
+  stage,
+  money,
+  maxMoney,
+  workerCatLevel,
+  workerUpgradeCost,
+  cannonChargePercent,
+  speedMultiplier,
+  isAutoBattle,
+  isPaused,
+  equippedUnits,
+  playerProgress,
+  unitCooldowns,
+  onDeployUnit,
+  onUpgradeWorkerCat,
+  onFireCannon,
+  onToggleSpeed,
+  onToggleAuto,
+  onTogglePause,
+  onRetreat,
+}) => {
+  return (
+    <div className="w-full space-y-3 font-sans select-none">
+      {/* --- Top Control & Resource Bar --- */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-slate-900/90 p-3 backdrop-blur-md border border-slate-700/60 text-white shadow-xl">
+        {/* Stage Name */}
+        <div className="flex items-center gap-2">
+          <span className="rounded-lg bg-amber-500/20 px-2.5 py-1 text-xs font-bold text-amber-400 border border-amber-500/40">
+            {stage.chapterName.split(':')[0]}
+          </span>
+          <h2 className="text-sm md:text-base font-black text-slate-100 truncate max-w-[160px] sm:max-w-none">
+            {stage.name}
+          </h2>
+        </div>
+
+        {/* Money Counter & Worker Cat */}
+        <div className="flex items-center gap-3 bg-slate-950/80 px-4 py-1.5 rounded-xl border border-amber-500/30">
+          <div className="text-amber-400 font-extrabold text-sm md:text-lg flex items-center gap-1.5">
+            <span>💰</span>
+            <span>
+              {Math.floor(money)} / <span className="text-amber-200/80 text-xs md:text-sm">{maxMoney}</span>
+            </span>
+          </div>
+
+          <button
+            onClick={() => {
+              if (money >= workerUpgradeCost && workerCatLevel < 8) {
+                soundManager.playLevelUp();
+                onUpgradeWorkerCat();
+              }
+            }}
+            disabled={money < workerUpgradeCost || workerCatLevel >= 8}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+              workerCatLevel >= 8
+                ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                : money >= workerUpgradeCost
+                ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md animate-pulse cursor-pointer'
+                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+            }`}
+          >
+            <ArrowUpCircle className="w-3.5 h-3.5" />
+            <span>
+              働きネコ Lv.{workerCatLevel}
+              {workerCatLevel < 8 ? ` ($${workerUpgradeCost})` : ' (MAX)'}
+            </span>
+          </button>
+        </div>
+
+        {/* Right Side Toggles: Cannon, Speed, Auto, Pause */}
+        <div className="flex items-center gap-2">
+          {/* Cannon Button */}
+          <button
+            onClick={() => {
+              if (cannonChargePercent >= 100) {
+                soundManager.playCannon();
+                onFireCannon();
+              }
+            }}
+            disabled={cannonChargePercent < 100}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs md:text-sm transition-all ${
+              cannonChargePercent >= 100
+                ? 'bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950 shadow-lg shadow-cyan-500/50 animate-bounce cursor-pointer'
+                : 'bg-slate-800 text-slate-400 border border-slate-700'
+            }`}
+          >
+            <Zap className="w-4 h-4" />
+            <span>
+              キャット砲 {cannonChargePercent >= 100 ? 'READY!' : `${Math.floor(cannonChargePercent)}%`}
+            </span>
+          </button>
+
+          {/* Speed Toggle Button */}
+          <button
+            onClick={onToggleSpeed}
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 transition-colors flex items-center gap-1 text-xs font-bold"
+            title="ゲーム速度変更"
+          >
+            <FastForward className="w-4 h-4" />
+            <span>x{speedMultiplier}</span>
+          </button>
+
+          {/* Auto Battle Button */}
+          <button
+            onClick={onToggleAuto}
+            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 border ${
+              isAutoBattle
+                ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/30'
+                : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+            }`}
+            title="オート戦闘"
+          >
+            <Bot className="w-4 h-4" />
+            <span>{isAutoBattle ? 'AUTO ON' : 'AUTO'}</span>
+          </button>
+
+          {/* Pause Button */}
+          <button
+            onClick={onTogglePause}
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+          >
+            {isPaused ? <Play className="w-4 h-4 text-emerald-400" /> : <Pause className="w-4 h-4" />}
+          </button>
+        </div>
+      </div>
+
+      {/* --- Bottom Unit Deployment Cards --- */}
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 p-2 rounded-2xl bg-slate-900/80 border border-slate-800 backdrop-blur-sm">
+        {equippedUnits.map((unit) => {
+          const progress = playerProgress[unit.id] || { level: 1, currentStage: 1 };
+          const stageKey = `stage${progress.currentStage}` as keyof typeof unit.evolutions;
+          
+          let evolutionData = unit.evolutions.stage1;
+          if (progress.currentStage === 2) {
+            evolutionData = unit.evolutions.stage2;
+          } else if (progress.currentStage === 3 && unit.evolutions.stage3Branches) {
+            const branch = progress.selectedBranch || 'branchA';
+            evolutionData = unit.evolutions.stage3Branches[branch];
+          }
+
+          const cooldown = unitCooldowns[unit.id] || 0;
+          const isCoolingDown = cooldown > 0;
+          const canAfford = money >= unit.deployCost;
+          const isReady = !isCoolingDown && canAfford;
+
+          return (
+            <button
+              key={unit.id}
+              onClick={() => {
+                if (isReady) {
+                  soundManager.playSpawn();
+                  onDeployUnit(unit.id);
+                }
+              }}
+              disabled={!isReady}
+              className={`relative flex flex-col items-center justify-between p-2 rounded-xl transition-all duration-150 border text-left ${
+                isReady
+                  ? 'bg-slate-800 hover:bg-slate-700 border-amber-400/80 shadow-lg shadow-amber-500/10 cursor-pointer transform active:scale-95'
+                  : 'bg-slate-900/90 border-slate-800 opacity-60 cursor-not-allowed'
+              }`}
+            >
+              {/* Icon & Level */}
+              <div className="flex items-center justify-between w-full">
+                <span className="text-2xl filter drop-shadow">{evolutionData.icon}</span>
+                <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-slate-950 text-slate-300">
+                  Lv.{progress.level}
+                </span>
+              </div>
+
+              {/* Unit Name */}
+              <div className="w-full mt-1">
+                <p className="text-xs font-bold text-slate-100 truncate">{evolutionData.name}</p>
+                <p
+                  className={`text-[11px] font-black ${
+                    canAfford ? 'text-amber-400' : 'text-slate-500'
+                  }`}
+                >
+                  ${unit.deployCost}
+                </p>
+              </div>
+
+              {/* Cooldown Overlay */}
+              {isCoolingDown && (
+                <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-[1px] rounded-xl flex items-center justify-center border border-slate-700">
+                  <span className="text-xs font-extrabold text-amber-300">
+                    {cooldown.toFixed(1)}s
+                  </span>
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* --- Pause Modal --- */}
+      {isPaused && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-3xl bg-slate-900 border-2 border-slate-700 p-6 text-center space-y-4 shadow-2xl">
+            <h3 className="text-xl font-black text-white flex items-center justify-center gap-2">
+              <Pause className="w-5 h-5 text-amber-400" />
+              一時停止中
+            </h3>
+            <p className="text-xs text-slate-400">戦況を確認し、作戦を再開してください。</p>
+
+            <div className="space-y-2 pt-2">
+              <button
+                onClick={onTogglePause}
+                className="w-full py-3 rounded-xl font-black bg-amber-500 hover:bg-amber-400 text-slate-950 transition-all cursor-pointer shadow-lg"
+              >
+                戦闘を再開する
+              </button>
+              <button
+                onClick={onRetreat}
+                className="w-full py-2.5 rounded-xl font-bold bg-slate-800 hover:bg-rose-950 hover:border-rose-700 text-rose-400 border border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <ShieldAlert className="w-4 h-4" />
+                撤退する（マップに戻る）
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
