@@ -45,12 +45,48 @@ const INITIAL_PLAYER_DATA: PlayerData = {
 };
 
 export default function App() {
-  // --- Persistent Storage ---
+  // --- Offline & Online Energy Auto-Recovery Logic ---
+  const ENERGY_REFILL_INTERVAL_MS = 15000; // 15 seconds per 1 energy
+
+  // Helper function to calculate energy recovery based on timestamp
+  const calculateEnergyRefill = (data: PlayerData): PlayerData => {
+    const now = Date.now();
+    const lastTimestamp = data.lastEnergyRefillTimestamp || now;
+    const elapsed = now - lastTimestamp;
+
+    if (data.energy >= data.maxEnergy) {
+      if (data.lastEnergyRefillTimestamp !== now) {
+        return { ...data, lastEnergyRefillTimestamp: now };
+      }
+      return data;
+    }
+
+    if (elapsed < ENERGY_REFILL_INTERVAL_MS) {
+      return data;
+    }
+
+    const pointsToRecover = Math.floor(elapsed / ENERGY_REFILL_INTERVAL_MS);
+    const needed = data.maxEnergy - data.energy;
+    const actualRecovered = Math.min(needed, pointsToRecover);
+
+    const newEnergy = data.energy + actualRecovered;
+    const remainder = elapsed % ENERGY_REFILL_INTERVAL_MS;
+    const newTimestamp = newEnergy >= data.maxEnergy ? now : now - remainder;
+
+    return {
+      ...data,
+      energy: newEnergy,
+      lastEnergyRefillTimestamp: newTimestamp,
+    };
+  };
+
+  // Persistent storage with offline recovery calculation on boot
   const [playerData, setPlayerData] = useState<PlayerData>(() => {
     const saved = localStorage.getItem('nyanko_war_2_save');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed: PlayerData = JSON.parse(saved);
+        return calculateEnergyRefill(parsed);
       } catch (e) {
         console.error('Failed to parse save data', e);
       }
@@ -132,6 +168,7 @@ export default function App() {
           ...prev,
           energy: Math.max(0, energy),
           maxEnergy: maxEnergy !== undefined ? Math.max(1, maxEnergy) : prev.maxEnergy,
+          lastEnergyRefillTimestamp: Date.now(),
         }));
         console.log(`⚡ [NyankoDev] 統率力を ${energy} に設定しました！`);
       },
@@ -238,11 +275,8 @@ export default function App() {
   };
   useEffect(() => {
     const interval = setInterval(() => {
-      setPlayerData((prev) => {
-        if (prev.energy >= prev.maxEnergy) return prev;
-        return { ...prev, energy: Math.min(prev.maxEnergy, prev.energy + 1) };
-      });
-    }, 15000); // 1 energy per 15s
+      setPlayerData((prev) => calculateEnergyRefill(prev));
+    }, 1000); // Check every second for smooth recovery & off-tab sync
     return () => clearInterval(interval);
   }, []);
 
@@ -250,11 +284,17 @@ export default function App() {
   const handleStartBattle = (stage: StageData) => {
     if (playerData.energy < stage.energyCost) return;
 
-    // Deduct Energy
-    setPlayerData((prev) => ({
-      ...prev,
-      energy: prev.energy - stage.energyCost,
-    }));
+    // Deduct Energy & track timestamp for refill
+    setPlayerData((prev) => {
+      const isWasFull = prev.energy >= prev.maxEnergy;
+      const newEnergy = Math.max(0, prev.energy - stage.energyCost);
+      const now = Date.now();
+      return {
+        ...prev,
+        energy: newEnergy,
+        lastEnergyRefillTimestamp: isWasFull ? now : (prev.lastEnergyRefillTimestamp || now),
+      };
+    });
 
     setActiveStage(stage);
     setPlayerCastleHp(stage.playerCastleHp);

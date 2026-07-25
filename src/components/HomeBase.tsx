@@ -125,6 +125,11 @@ export const HomeBase: React.FC<HomeBaseProps> = ({
             <span className="text-xs font-black text-emerald-200">
               {playerData.energy}/{playerData.maxEnergy}
             </span>
+            {playerData.energy < playerData.maxEnergy && (
+              <span className="text-[10px] text-emerald-400/90 font-mono font-bold bg-emerald-950 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                +{Math.max(1, Math.ceil((15000 - ((Date.now() - (playerData.lastEnergyRefillTimestamp || Date.now())) % 15000)) / 1000))}s
+              </span>
+            )}
           </div>
 
           <button
