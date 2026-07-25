@@ -219,6 +219,13 @@ export default function App() {
 
   // --- Battle State ---
   const [activeStage, setActiveStage] = useState<StageData | null>(null);
+  const [activeBattleItems, setActiveBattleItems] = useState<{
+    catBon?: boolean;
+    sniper?: boolean;
+    cpu?: boolean;
+    treasureRadar?: boolean;
+  }>({});
+  const sniperTimerRef = useRef<number>(0);
   const [playerCastleHp, setPlayerCastleHp] = useState(1000);
   const [playerCastleMaxHp, setPlayerCastleMaxHp] = useState(1000);
   const [enemyCastleHp, setEnemyCastleHp] = useState(1000);
@@ -290,17 +297,39 @@ export default function App() {
   }, []);
 
   // --- Start Battle Handler ---
-  const handleStartBattle = (stage: StageData) => {
+  const handleStartBattle = (
+    stage: StageData,
+    activeItems?: { catBon?: boolean; sniper?: boolean; cpu?: boolean; treasureRadar?: boolean }
+  ) => {
     if (playerData.energy < stage.energyCost) return;
 
-    // Deduct Energy & track timestamp for refill
+    const itemsUsed = activeItems || {};
+    setActiveBattleItems(itemsUsed);
+
+    // Deduct Energy & Item inventory & track timestamp for refill
     setPlayerData((prev) => {
       const isWasFull = prev.energy >= prev.maxEnergy;
       const newEnergy = Math.max(0, prev.energy - stage.energyCost);
       const now = Date.now();
+
+      const currentItems = { ...(prev.items || {}) };
+      if (itemsUsed.catBon && (currentItems.catBon || 0) > 0) {
+        currentItems.catBon = (currentItems.catBon || 0) - 1;
+      }
+      if (itemsUsed.sniper && (currentItems.sniper || 0) > 0) {
+        currentItems.sniper = (currentItems.sniper || 0) - 1;
+      }
+      if (itemsUsed.cpu && (currentItems.cpu || 0) > 0) {
+        currentItems.cpu = (currentItems.cpu || 0) - 1;
+      }
+      if (itemsUsed.treasureRadar && (currentItems.treasureRadar || 0) > 0) {
+        currentItems.treasureRadar = (currentItems.treasureRadar || 0) - 1;
+      }
+
       return {
         ...prev,
         energy: newEnergy,
+        items: currentItems,
         lastEnergyRefillTimestamp: isWasFull ? now : (prev.lastEnergyRefillTimestamp || now),
       };
     });
@@ -311,8 +340,15 @@ export default function App() {
     setEnemyCastleHp(stage.enemyCastleHp);
     setEnemyCastleMaxHp(stage.enemyCastleHp);
 
-    setMoney(100);
-    setWorkerCatLevel(1);
+    // CatBon item effect: Lv.8 Max Worker Cat & $7500 money start
+    const startWorkerLevel = itemsUsed.catBon ? 8 : 1;
+    const startMoney = itemsUsed.catBon ? 7500 : 100;
+    setMoney(startMoney);
+    setWorkerCatLevel(startWorkerLevel);
+
+    // CPU item effect: Auto Battle enabled from start
+    setIsAutoBattle(!!itemsUsed.cpu);
+
     setCannonChargePercent(0);
     setIsCannonFiring(false);
     setCannonLaserX(null);
@@ -327,6 +363,7 @@ export default function App() {
     setActiveWaveText(null);
     setIsPaused(false);
     enemySpawnStatesRef.current = {};
+    sniperTimerRef.current = 0;
 
     setCurrentView('BATTLE');
     soundManager.startBgm();
@@ -341,8 +378,9 @@ export default function App() {
       setBattleTimerSeconds((prev) => prev + dt);
 
       // 1. Update Money & Cannon Charge
-      const maxMoney = 100 + (workerCatLevel - 1) * 200;
-      setMoney((prev) => Math.min(maxMoney, prev + dt * (18 + workerCatLevel * 12)));
+      const maxMoneyTable = [100, 450, 800, 1200, 2000, 3200, 5000, 7500];
+      const maxMoney = maxMoneyTable[Math.min(workerCatLevel - 1, 7)];
+      setMoney((prev) => Math.min(maxMoney, prev + dt * (15 + workerCatLevel * 20)));
       setCannonChargePercent((prev) => Math.min(100, prev + dt * 4));
 
       // 2. Update Unit Cooldowns
@@ -353,6 +391,38 @@ export default function App() {
         }
         return next;
       });
+
+      // 2.5. Sniper Cat Auto Fire Item Logic
+      if (activeBattleItems.sniper) {
+        sniperTimerRef.current += dt;
+        if (sniperTimerRef.current >= 6.5) {
+          sniperTimerRef.current = 0;
+          setActiveUnits((prevUnits) => {
+            const enemyUnits = prevUnits.filter((u) => u.side === 'enemy' && u.hp > 0);
+            if (enemyUnits.length === 0) return prevUnits;
+
+            // Sort enemies by X ascending (closest enemy to player castle x=0)
+            const sorted = [...enemyUnits].sort((a, b) => a.x - b.x);
+            const target = sorted[0];
+
+            soundManager.playKnockback();
+            addFloatingText(target.x, '🎯 SNIPER! -350', '#f43f5e');
+
+            return prevUnits.map((u) => {
+              if (u.instanceId === target.instanceId) {
+                return {
+                  ...u,
+                  hp: Math.max(0, u.hp - 350),
+                  isKnockedBack: true,
+                  knockbackTimer: 0.6,
+                  x: Math.min(1000, u.x + 70),
+                };
+              }
+              return u;
+            });
+          });
+        }
+      }
 
       // 3. Enemy Spawning Logic (Wave & Multi-Wave Continuous Spawns)
       if (activeStage) {
@@ -507,7 +577,7 @@ export default function App() {
       }
 
       // 6. Smart Auto Battle AI Behavior (ニャンコCPU AI Commander)
-      if (isAutoBattle && activeStage) {
+      if (isAutoBattle && activeBattleItems.cpu && activeStage) {
         aiActionCooldownRef.current -= dt;
 
         if (aiActionCooldownRef.current <= 0) {
@@ -767,9 +837,15 @@ export default function App() {
     setActiveUnits((prev) => [...prev, newUnit]);
   };
 
+  // Helper for Worker Cat upgrade cost
+  const getWorkerUpgradeCost = (level: number) => {
+    const costs = [150, 260, 450, 800, 1400, 2400, 4200];
+    return costs[Math.min(level - 1, costs.length - 1)] || 9999;
+  };
+
   // --- Worker Cat Upgrade Handler ---
   const handleUpgradeWorkerCat = () => {
-    const cost = Math.floor(100 * Math.pow(1.3, workerCatLevel - 1));
+    const cost = getWorkerUpgradeCost(workerCatLevel);
     if (money >= cost && workerCatLevel < 8) {
       setMoney((prev) => prev - cost);
       setWorkerCatLevel((prev) => prev + 1);
@@ -830,12 +906,21 @@ export default function App() {
 
     setPlayerData((prev) => {
       const isFirstClear = !prev.clearedStages.includes(activeStage.id);
+      const baseCatFood = isFirstClear ? activeStage.firstClearRewardCatFood : 20;
+      const baseXp = isFirstClear ? activeStage.firstClearRewardXp : 800;
+      const baseStones = 1;
+
+      const hasRadar = !!activeBattleItems.treasureRadar;
+      const finalCatFood = hasRadar ? baseCatFood * 2 + 10 : baseCatFood;
+      const finalXp = hasRadar ? baseXp * 2 + 2000 : baseXp;
+      const finalStones = hasRadar ? baseStones + 2 : baseStones;
+
       return {
         ...prev,
         clearedStages: Array.from(new Set([...prev.clearedStages, activeStage.id])),
-        catFood: prev.catFood + (isFirstClear ? activeStage.firstClearRewardCatFood : 20),
-        xp: prev.xp + (isFirstClear ? activeStage.firstClearRewardXp : 800),
-        evolutionStones: prev.evolutionStones + 1,
+        catFood: prev.catFood + finalCatFood,
+        xp: prev.xp + finalXp,
+        evolutionStones: prev.evolutionStones + finalStones,
       };
     });
   };
@@ -1073,9 +1158,9 @@ export default function App() {
             <BattleUI
               stage={activeStage}
               money={money}
-              maxMoney={100 + (workerCatLevel - 1) * 200}
+              maxMoney={[100, 450, 800, 1200, 2000, 3200, 5000, 7500][Math.min(workerCatLevel - 1, 7)]}
               workerCatLevel={workerCatLevel}
-              workerUpgradeCost={Math.floor(100 * Math.pow(1.3, workerCatLevel - 1))}
+              workerUpgradeCost={getWorkerUpgradeCost(workerCatLevel)}
               cannonChargePercent={cannonChargePercent}
               speedMultiplier={speedMultiplier}
               isAutoBattle={isAutoBattle}
@@ -1084,6 +1169,7 @@ export default function App() {
               playerProgress={playerData.unlockedUnits}
               unitCooldowns={unitCooldowns}
               activeWaveText={activeWaveText}
+              activeBattleItems={activeBattleItems}
               onDeployUnit={handleDeployUnit}
               onUpgradeWorkerCat={handleUpgradeWorkerCat}
               onFireCannon={handleFireCannon}
@@ -1109,10 +1195,31 @@ export default function App() {
               <>
                 <div className="text-6xl animate-bounce">🏆🐱</div>
                 <h2 className="text-2xl font-black text-amber-400">完全勝利！城を攻め落とした！</h2>
+
+                {activeBattleItems.treasureRadar && (
+                  <div className="px-3 py-1.5 rounded-xl bg-purple-950 border border-purple-500 text-purple-300 font-black text-xs animate-pulse flex items-center justify-center gap-1">
+                    <span>👁️ トレジャーレーダー発動！クリア報酬100%確定＆豪華2倍！</span>
+                  </div>
+                )}
+
                 <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2 text-xs font-bold text-slate-200">
-                  <p className="text-amber-300">獲得猫缶: +{activeStage.firstClearRewardCatFood}</p>
-                  <p className="text-amber-400">獲得XP: +{activeStage.firstClearRewardXp.toLocaleString()} XP</p>
-                  <p className="text-cyan-400">獲得素材: +1 進化石</p>
+                  <p className="text-amber-300">
+                    獲得猫缶: +
+                    {activeBattleItems.treasureRadar
+                      ? activeStage.firstClearRewardCatFood * 2 + 10
+                      : activeStage.firstClearRewardCatFood}
+                  </p>
+                  <p className="text-amber-400">
+                    獲得XP: +
+                    {(activeBattleItems.treasureRadar
+                      ? activeStage.firstClearRewardXp * 2 + 2000
+                      : activeStage.firstClearRewardXp
+                    ).toLocaleString()}{' '}
+                    XP
+                  </p>
+                  <p className="text-cyan-400">
+                    獲得素材: +{activeBattleItems.treasureRadar ? 3 : 1} 進化石
+                  </p>
                 </div>
               </>
             ) : (

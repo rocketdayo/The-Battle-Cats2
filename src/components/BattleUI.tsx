@@ -17,6 +17,7 @@ interface BattleUIProps {
   playerProgress: Record<string, PlayerUnitProgress>;
   unitCooldowns: Record<string, number>; // remaining seconds
   activeWaveText?: string | null;
+  activeBattleItems?: { catBon?: boolean; sniper?: boolean; cpu?: boolean; treasureRadar?: boolean };
   onDeployUnit: (unitId: string) => void;
   onUpgradeWorkerCat: () => void;
   onFireCannon: () => void;
@@ -40,6 +41,7 @@ export const BattleUI: React.FC<BattleUIProps> = ({
   playerProgress,
   unitCooldowns,
   activeWaveText,
+  activeBattleItems,
   onDeployUnit,
   onUpgradeWorkerCat,
   onFireCannon,
@@ -60,14 +62,39 @@ export const BattleUI: React.FC<BattleUIProps> = ({
 
       {/* --- Top Control & Resource Bar --- */}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-slate-900/95 p-3 backdrop-blur-md border-2 border-amber-500/40 text-white shadow-2xl">
-        {/* Stage Name */}
-        <div className="flex items-center gap-2">
+        {/* Stage Name & Active Items */}
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="rounded-xl bg-amber-500/20 px-3 py-1 text-xs font-black text-amber-300 border border-amber-400/50">
             {stage.chapterName.split(':')[0]}
           </span>
-          <h2 className="text-sm md:text-base font-black text-slate-100 truncate max-w-[160px] sm:max-w-none">
+          <h2 className="text-sm md:text-base font-black text-slate-100 truncate max-w-[140px] sm:max-w-none">
             {stage.name}
           </h2>
+
+          {activeBattleItems && (
+            <div className="flex items-center gap-1.5 text-[10px] font-black">
+              {activeBattleItems.catBon && (
+                <span className="px-2 py-0.5 rounded-lg bg-amber-500/20 border border-amber-400 text-amber-300 flex items-center gap-0.5">
+                  💣 ネコボン
+                </span>
+              )}
+              {activeBattleItems.sniper && (
+                <span className="px-2 py-0.5 rounded-lg bg-rose-500/20 border border-rose-400 text-rose-300 flex items-center gap-0.5">
+                  🎯 スニャイパー
+                </span>
+              )}
+              {activeBattleItems.cpu && (
+                <span className="px-2 py-0.5 rounded-lg bg-emerald-500/20 border border-emerald-400 text-emerald-300 flex items-center gap-0.5">
+                  🤖 CPU
+                </span>
+              )}
+              {activeBattleItems.treasureRadar && (
+                <span className="px-2 py-0.5 rounded-lg bg-purple-500/20 border border-purple-400 text-purple-300 flex items-center gap-0.5">
+                  👁️ レーダー
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Money Counter & Worker Cat */}
@@ -138,16 +165,27 @@ export const BattleUI: React.FC<BattleUIProps> = ({
 
           {/* Auto Battle Button */}
           <button
-            onClick={onToggleAuto}
-            className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1 border ${
-              isAutoBattle
-                ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow-lg shadow-emerald-500/40 cursor-pointer'
-                : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 cursor-pointer'
+            onClick={() => {
+              if (!activeBattleItems?.cpu) {
+                soundManager.playClick();
+                alert('🤖「ニャンコCPU」がセットされていません！\nステージ挑戦画面の持ち込みアイテム選択で「ニャンコCPU」をONにして出撃すると、自動全自動バトル機能が開放されます！');
+                return;
+              }
+              onToggleAuto();
+            }}
+            className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1 border cursor-pointer ${
+              activeBattleItems?.cpu
+                ? isAutoBattle
+                  ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow-lg shadow-emerald-500/40'
+                  : 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50 hover:bg-emerald-900'
+                : 'bg-slate-900 text-slate-500 border-slate-800 opacity-60 hover:opacity-80'
             }`}
-            title="オート戦闘"
+            title={activeBattleItems?.cpu ? 'にゃangko CPU (ON/OFF切替)' : 'ニャンコCPU非セット（タップで詳細）'}
           >
-            <Bot className="w-4 h-4" />
-            <span>{isAutoBattle ? 'AUTO ON' : 'AUTO'}</span>
+            <Bot className={`w-4 h-4 ${activeBattleItems?.cpu ? 'text-emerald-400' : 'text-slate-500'}`} />
+            <span>
+              {activeBattleItems?.cpu ? (isAutoBattle ? 'CPU: ON' : 'CPU: OFF') : 'CPU: 未装着'}
+            </span>
           </button>
 
           {/* Pause Button */}

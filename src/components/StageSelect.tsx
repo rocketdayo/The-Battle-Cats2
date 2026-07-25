@@ -21,7 +21,10 @@ import { soundManager } from '../utils/audio';
 
 interface StageSelectProps {
   playerData: PlayerData;
-  onSelectStage: (stage: StageData) => void;
+  onSelectStage: (
+    stage: StageData,
+    activeItems?: { catBon?: boolean; sniper?: boolean; cpu?: boolean; treasureRadar?: boolean }
+  ) => void;
   onOpenEvolution: (unit: CatUnitData) => void;
   onOpenGacha: () => void;
   onOpenCodex: () => void;
@@ -39,6 +42,7 @@ export const StageSelect: React.FC<StageSelectProps> = ({
 }) => {
   const [selectedChapter, setSelectedChapter] = useState<number>(1);
   const [activeStage, setActiveStage] = useState<StageData | null>(null);
+  const [selectedItems, setSelectedItems] = useState<Record<string, boolean>>({});
   const mapScrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Helper to check if a stage is unlocked
@@ -566,13 +570,84 @@ export const StageSelect: React.FC<StageSelectProps> = ({
             </div>
           </div>
 
+          {/* Item Selection Strip */}
+          <div className="p-3 rounded-2xl bg-slate-950 border border-amber-500/30 space-y-2">
+            <div className="flex items-center justify-between text-xs font-bold text-amber-300">
+              <span>🧰 戦闘持ち込みアイテム選択（タップで使用ON/OFF）</span>
+              <span className="text-[10px] text-slate-400">※出撃時に所持品から1個消費されます</span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              {[
+                { id: 'catBon', name: 'ネコボン', icon: '💣', desc: '働きネコLv.MAXスタート' },
+                { id: 'sniper', name: 'スニャイパー', icon: '🎯', desc: '全自動遠距離狙撃' },
+                { id: 'cpu', name: 'ニャンコCPU', icon: '🤖', desc: '高精度AI全自動戦闘' },
+                { id: 'treasureRadar', name: 'トレジャーレーダー', icon: '👁️', desc: 'ドロップ報酬100%確定・2倍' },
+              ].map((item) => {
+                const owned = (playerData.items || {})[item.id] || 0;
+                const isSelected = !!selectedItems[item.id] && owned > 0;
+
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      if (owned > 0) {
+                        soundManager.playClick();
+                        setSelectedItems((prev) => ({
+                          ...prev,
+                          [item.id]: !prev[item.id],
+                        }));
+                      } else {
+                        soundManager.playClick();
+                        alert(`「${item.name}」を所持していません。ネコ基地の「アイテムショップ」で購入してね！`);
+                      }
+                    }}
+                    className={`p-2 rounded-xl border transition-all text-left flex flex-col justify-between cursor-pointer ${
+                      isSelected
+                        ? 'bg-amber-500/20 border-amber-400 text-amber-200 shadow-md ring-1 ring-amber-400'
+                        : owned > 0
+                        ? 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-600 opacity-60'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold flex items-center gap-1 text-[11px]">
+                        <span>{item.icon}</span>
+                        <span>{item.name}</span>
+                      </span>
+                      <span
+                        className={`text-[9px] px-1.5 py-0.2 rounded font-black ${
+                          isSelected
+                            ? 'bg-amber-400 text-slate-950'
+                            : owned > 0
+                            ? 'bg-slate-800 text-slate-300'
+                            : 'bg-slate-900 text-slate-600'
+                        }`}
+                      >
+                        {isSelected ? '使用ON' : `所持:${owned}`}
+                      </span>
+                    </div>
+                    <p className="text-[9px] opacity-80 mt-1 line-clamp-1">{item.desc}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Big Yellow Battle Start Button */}
           <div className="pt-2 flex justify-end">
             <button
               onClick={() => {
                 if (playerData.energy >= currentSelectedStage.energyCost) {
                   soundManager.playSpawn();
-                  onSelectStage(currentSelectedStage);
+                  const activeItems = {
+                    catBon: !!(selectedItems.catBon && (playerData.items?.catBon || 0) > 0),
+                    sniper: !!(selectedItems.sniper && (playerData.items?.sniper || 0) > 0),
+                    cpu: !!(selectedItems.cpu && (playerData.items?.cpu || 0) > 0),
+                    treasureRadar: !!(selectedItems.treasureRadar && (playerData.items?.treasureRadar || 0) > 0),
+                  };
+                  onSelectStage(currentSelectedStage, activeItems);
                 }
               }}
               disabled={playerData.energy < currentSelectedStage.energyCost}

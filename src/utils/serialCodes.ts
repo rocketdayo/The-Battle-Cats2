@@ -14,6 +14,42 @@ export const DEFAULT_SERIAL_CODES: SerialCode[] = [
     isActive: true,
   },
   {
+    code: 'BONBON2026',
+    rewardCatFood: 50,
+    rewardItems: { catBon: 5 },
+    description: '【公式限定】ネコボン 5個プレゼント！',
+    isActive: true,
+  },
+  {
+    code: 'SNIPER2026',
+    rewardCatFood: 50,
+    rewardItems: { sniper: 5 },
+    description: '【公式限定】スニャイパー 5個プレゼント！',
+    isActive: true,
+  },
+  {
+    code: 'NYANKOCPU',
+    rewardCatFood: 50,
+    rewardItems: { cpu: 5 },
+    description: '【公式限定】ニャンコCPU 5個プレゼント！',
+    isActive: true,
+  },
+  {
+    code: 'RADAR2026',
+    rewardCatFood: 50,
+    rewardItems: { treasureRadar: 3 },
+    description: '【公式限定】トレジャーレーダー 3個プレゼント！',
+    isActive: true,
+  },
+  {
+    code: 'ITEMPACK2026',
+    rewardCatFood: 100,
+    rewardXp: 10000,
+    rewardItems: { catBon: 3, sniper: 3, cpu: 3, treasureRadar: 3 },
+    description: '【豪華パック】全アイテム各3個詰め合わせセット！',
+    isActive: true,
+  },
+  {
     code: 'NEKO2026',
     rewardCatFood: 200,
     description: '【2026年記念】感謝のネコ缶200個プレゼント！',
@@ -118,9 +154,18 @@ export function decryptPayload(encryptedStr: string): string | null {
 }
 
 // Generate Universal Portable Encrypted Code string for a reward
-export function generateUniversalRewardCode(codeName: string, catFood: number, xp: number = 0): string {
+export function generateUniversalRewardCode(
+  codeName: string,
+  catFood: number,
+  xp: number = 0,
+  items?: { catBon?: number; sniper?: number; cpu?: number; treasureRadar?: number }
+): string {
   const cleanName = codeName.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') || 'GIFT';
-  const payload = `REWARD:${cleanName}:${catFood}:${xp}`;
+  const bon = items?.catBon || 0;
+  const sni = items?.sniper || 0;
+  const cpu = items?.cpu || 0;
+  const rad = items?.treasureRadar || 0;
+  const payload = `REWARD:${cleanName}:${catFood}:${xp}:${bon}:${sni}:${cpu}:${rad}`;
   const encryptedToken = encryptPayload(payload);
   return `NYC-${encryptedToken}`;
 }
@@ -175,6 +220,12 @@ export interface RedeemResult {
   message: string;
   rewardCatFood?: number;
   rewardXp?: number;
+  rewardItems?: {
+    catBon?: number;
+    sniper?: number;
+    cpu?: number;
+    treasureRadar?: number;
+  };
   rewardUnit?: CatUnitData;
 }
 
@@ -278,20 +329,37 @@ export function claimSerialCode(
       };
     }
 
-    const [_, codeName, cfStr, xpStr] = parts;
+    const [_, codeName, cfStr, xpStr, bonStr, sniStr, cpuStr, radStr] = parts;
     const cfVal = parseInt(cfStr, 10) || 0;
     const xpVal = parseInt(xpStr, 10) || 0;
+    const bonVal = parseInt(bonStr || '0', 10) || 0;
+    const sniVal = parseInt(sniStr || '0', 10) || 0;
+    const cpuVal = parseInt(cpuStr || '0', 10) || 0;
+    const radVal = parseInt(radStr || '0', 10) || 0;
+
+    const updatedItems = { ...(playerData.items || {}) };
+    if (bonVal > 0) updatedItems.catBon = (updatedItems.catBon || 0) + bonVal;
+    if (sniVal > 0) updatedItems.sniper = (updatedItems.sniper || 0) + sniVal;
+    if (cpuVal > 0) updatedItems.cpu = (updatedItems.cpu || 0) + cpuVal;
+    if (radVal > 0) updatedItems.treasureRadar = (updatedItems.treasureRadar || 0) + radVal;
 
     const updatedPlayerData: PlayerData = {
       ...playerData,
       catFood: playerData.catFood + cfVal,
       xp: playerData.xp + xpVal,
+      items: updatedItems,
       usedSerialCodes: [...usedList, normalizedInput],
     };
 
-    const rewardMsg = xpVal > 0
-      ? `🎁【暗号シリアル認証成功】 猫缶 +${cfVal}個 & XP +${xpVal.toLocaleString()} 獲得！`
-      : `🎁【暗号シリアル認証成功】 猫缶 +${cfVal}個 獲得！`;
+    const itemParts: string[] = [];
+    if (cfVal > 0) itemParts.push(`猫缶 +${cfVal}個`);
+    if (xpVal > 0) itemParts.push(`XP +${xpVal.toLocaleString()}`);
+    if (bonVal > 0) itemParts.push(`ネコボン +${bonVal}個`);
+    if (sniVal > 0) itemParts.push(`スニャイパー +${sniVal}個`);
+    if (cpuVal > 0) itemParts.push(`ニャンコCPU +${cpuVal}個`);
+    if (radVal > 0) itemParts.push(`トレジャーレーダー +${radVal}個`);
+
+    const rewardMsg = `🎁【暗号シリアル認証成功】 ${itemParts.join(' & ')} 獲得！`;
 
     return {
       updatedPlayerData,
@@ -300,6 +368,7 @@ export function claimSerialCode(
         message: rewardMsg,
         rewardCatFood: cfVal,
         rewardXp: xpVal,
+        rewardItems: { catBon: bonVal, sniper: sniVal, cpu: cpuVal, treasureRadar: radVal },
       },
     };
   }
@@ -323,16 +392,39 @@ export function claimSerialCode(
   }
 
   // Grant rewards for standard code
+  const updatedItems = { ...(playerData.items || {}) };
+  if (matchedCode.rewardItems) {
+    if (matchedCode.rewardItems.catBon) {
+      updatedItems.catBon = (updatedItems.catBon || 0) + matchedCode.rewardItems.catBon;
+    }
+    if (matchedCode.rewardItems.sniper) {
+      updatedItems.sniper = (updatedItems.sniper || 0) + matchedCode.rewardItems.sniper;
+    }
+    if (matchedCode.rewardItems.cpu) {
+      updatedItems.cpu = (updatedItems.cpu || 0) + matchedCode.rewardItems.cpu;
+    }
+    if (matchedCode.rewardItems.treasureRadar) {
+      updatedItems.treasureRadar = (updatedItems.treasureRadar || 0) + matchedCode.rewardItems.treasureRadar;
+    }
+  }
+
   const updatedPlayerData: PlayerData = {
     ...playerData,
     catFood: playerData.catFood + matchedCode.rewardCatFood,
     xp: playerData.xp + (matchedCode.rewardXp || 0),
+    items: updatedItems,
     usedSerialCodes: [...usedList, matchedCode.code.toUpperCase()],
   };
 
-  const rewardMsg = matchedCode.rewardXp
-    ? `🎁 特典獲得！ 猫缶 +${matchedCode.rewardCatFood}個 & XP +${matchedCode.rewardXp.toLocaleString()} 獲得！`
-    : `🎁 特典獲得！ 猫缶 +${matchedCode.rewardCatFood}個 獲得！`;
+  const itemParts: string[] = [];
+  if (matchedCode.rewardCatFood > 0) itemParts.push(`猫缶 +${matchedCode.rewardCatFood}個`);
+  if (matchedCode.rewardXp) itemParts.push(`XP +${matchedCode.rewardXp.toLocaleString()}`);
+  if (matchedCode.rewardItems?.catBon) itemParts.push(`ネコボン +${matchedCode.rewardItems.catBon}個`);
+  if (matchedCode.rewardItems?.sniper) itemParts.push(`スニャイパー +${matchedCode.rewardItems.sniper}個`);
+  if (matchedCode.rewardItems?.cpu) itemParts.push(`ニャンコCPU +${matchedCode.rewardItems.cpu}個`);
+  if (matchedCode.rewardItems?.treasureRadar) itemParts.push(`トレジャーレーダー +${matchedCode.rewardItems.treasureRadar}個`);
+
+  const rewardMsg = `🎁 特典獲得！ ${itemParts.join(' & ')} 獲得！`;
 
   return {
     updatedPlayerData,
@@ -341,6 +433,7 @@ export function claimSerialCode(
       message: rewardMsg,
       rewardCatFood: matchedCode.rewardCatFood,
       rewardXp: matchedCode.rewardXp,
+      rewardItems: matchedCode.rewardItems,
     },
   };
 }

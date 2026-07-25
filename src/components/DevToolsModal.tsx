@@ -30,6 +30,10 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
   const [newCodeName, setNewCodeName] = useState<string>('');
   const [newCodeCatFood, setNewCodeCatFood] = useState<string>('50');
   const [newCodeXp, setNewCodeXp] = useState<string>('0');
+  const [newCodeCatBon, setNewCodeCatBon] = useState<string>('0');
+  const [newCodeSniper, setNewCodeSniper] = useState<string>('0');
+  const [newCodeCpu, setNewCodeCpu] = useState<string>('0');
+  const [newCodeTreasureRadar, setNewCodeTreasureRadar] = useState<string>('0');
   const [newCodeDesc, setNewCodeDesc] = useState<string>('運営配布プレゼント！');
 
   const [notification, setNotification] = useState<string | null>(null);
@@ -82,11 +86,23 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
     }
     const catFoodNum = parseInt(newCodeCatFood) || 0;
     const xpNum = parseInt(newCodeXp) || 0;
+    const bonNum = parseInt(newCodeCatBon) || 0;
+    const sniNum = parseInt(newCodeSniper) || 0;
+    const cpuNum = parseInt(newCodeCpu) || 0;
+    const radNum = parseInt(newCodeTreasureRadar) || 0;
+
+    const rewardItems = (bonNum > 0 || sniNum > 0 || cpuNum > 0 || radNum > 0) ? {
+      catBon: bonNum > 0 ? bonNum : undefined,
+      sniper: sniNum > 0 ? sniNum : undefined,
+      cpu: cpuNum > 0 ? cpuNum : undefined,
+      treasureRadar: radNum > 0 ? radNum : undefined,
+    } : undefined;
 
     const newCodeItem: SerialCode = {
       code: trimmed,
       rewardCatFood: catFoodNum,
       rewardXp: xpNum,
+      rewardItems,
       description: newCodeDesc || '特製シリアルコード特典',
       isActive: true,
       createdAt: Date.now(),
@@ -97,7 +113,7 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
     saveCustomSerialCodes(updatedCustoms);
     setCodesList(getAllSerialCodes());
     setNewCodeName('');
-    showMsg(`シリアルコード【${trimmed}】（猫缶+${catFoodNum}個）を発行保存しました！`);
+    showMsg(`シリアルコード【${trimmed}】を発行保存しました！`);
   };
 
   const handleToggleCodeActive = (targetCode: string) => {
@@ -510,7 +526,7 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
                   <span className="text-[10px] text-slate-400 font-bold block mb-0.5">コード文字列:</span>
                   <input
                     type="text"
-                    placeholder="例: CATFOOD100"
+                    placeholder="例: ITEMGIFT2026"
                     value={newCodeName}
                     onChange={(e) => setNewCodeName(e.target.value)}
                     className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs font-black text-amber-200 uppercase focus:outline-none focus:border-amber-400"
@@ -538,11 +554,58 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
                 </div>
               </div>
 
+              {/* Item Rewards Inputs */}
+              <div>
+                <span className="text-[10px] text-amber-300 font-bold block mb-1">🧰 戦闘持ち込みアイテム付与数 (任意):</span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div>
+                    <span className="text-[9px] text-slate-400 font-bold block">💣 ネコボン</span>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={newCodeCatBon}
+                      onChange={(e) => setNewCodeCatBon(e.target.value)}
+                      className="w-full px-2 py-1 rounded-lg bg-slate-950 border border-slate-700 text-xs text-amber-300 focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-400 font-bold block">🎯 スニャイパー</span>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={newCodeSniper}
+                      onChange={(e) => setNewCodeSniper(e.target.value)}
+                      className="w-full px-2 py-1 rounded-lg bg-slate-950 border border-slate-700 text-xs text-rose-300 focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-400 font-bold block">🤖 ニャンコCPU</span>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={newCodeCpu}
+                      onChange={(e) => setNewCodeCpu(e.target.value)}
+                      className="w-full px-2 py-1 rounded-lg bg-slate-950 border border-slate-700 text-xs text-emerald-300 focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-400 font-bold block">👁️ レーダー</span>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={newCodeTreasureRadar}
+                      onChange={(e) => setNewCodeTreasureRadar(e.target.value)}
+                      className="w-full px-2 py-1 rounded-lg bg-slate-950 border border-slate-700 text-xs text-purple-300 focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <span className="text-[10px] text-slate-400 font-bold block mb-0.5">説明文:</span>
                 <input
                   type="text"
-                  placeholder="例: 運営からの感謝プレゼント！猫缶100個"
+                  placeholder="例: 運営からの感謝プレゼント！アイテムセット"
                   value={newCodeDesc}
                   onChange={(e) => setNewCodeDesc(e.target.value)}
                   className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-amber-400"
@@ -574,7 +637,12 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
                   const isDefaultCode = DEFAULT_SERIAL_CODES.some(
                     (d) => d.code.toUpperCase() === item.code.toUpperCase()
                   );
-                  const universalCode = generateUniversalRewardCode(item.code, item.rewardCatFood, item.rewardXp || 0);
+                  const universalCode = generateUniversalRewardCode(
+                    item.code,
+                    item.rewardCatFood,
+                    item.rewardXp || 0,
+                    item.rewardItems
+                  );
 
                   return (
                     <div
@@ -587,14 +655,36 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
                     >
                       <div className="flex items-center justify-between text-xs">
                         <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-black text-amber-300 tracking-wider">{item.code}</span>
-                            <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold">
-                              猫缶 +{item.rewardCatFood}個
-                            </span>
+                            {item.rewardCatFood > 0 && (
+                              <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold">
+                                猫缶 +{item.rewardCatFood}
+                              </span>
+                            )}
                             {item.rewardXp ? (
                               <span className="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 text-[10px] font-bold">
                                 XP +{item.rewardXp.toLocaleString()}
+                              </span>
+                            ) : null}
+                            {item.rewardItems?.catBon ? (
+                              <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold">
+                                💣ネコボン +{item.rewardItems.catBon}
+                              </span>
+                            ) : null}
+                            {item.rewardItems?.sniper ? (
+                              <span className="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 text-[10px] font-bold">
+                                🎯スニャイパー +{item.rewardItems.sniper}
+                              </span>
+                            ) : null}
+                            {item.rewardItems?.cpu ? (
+                              <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
+                                🤖CPU +{item.rewardItems.cpu}
+                              </span>
+                            ) : null}
+                            {item.rewardItems?.treasureRadar ? (
+                              <span className="px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 text-[10px] font-bold">
+                                👁️レーダー +{item.rewardItems.treasureRadar}
                               </span>
                             ) : null}
                             {isUsed && (

@@ -173,6 +173,12 @@ export interface SerialCode {
   code: string;
   rewardCatFood: number;
   rewardXp?: number;
+  rewardItems?: {
+    catBon?: number;
+    sniper?: number;
+    cpu?: number;
+    treasureRadar?: number;
+  };
   description: string;
   isActive: boolean;
   createdAt?: number;
