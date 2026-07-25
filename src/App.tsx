@@ -24,6 +24,7 @@ import { AiCatGeneratorModal } from './components/AiCatGeneratorModal';
 import { DevToolsModal } from './components/DevToolsModal';
 import { STAGES } from './data/stages';
 import { soundManager } from './utils/audio';
+import { calculateUnitStats } from './utils/unitCalculator';
 
 const INITIAL_PLAYER_DATA: PlayerData = {
   catFood: 300,
@@ -529,32 +530,14 @@ export default function App() {
   // --- Deploy Unit Handler ---
   const handleDeployUnit = (unitId: string) => {
     const baseUnit = allUnits.find((u) => u.id === unitId);
-    if (!baseUnit || money < baseUnit.deployCost) return;
+    if (!baseUnit) return;
 
-    const progress = playerData.unlockedUnits[unitId] || { level: 1, currentStage: 1 };
-    let evolutionData = baseUnit.evolutions.stage1;
-    if (progress.currentStage === 2) {
-      evolutionData = baseUnit.evolutions.stage2;
-    } else if (progress.currentStage === 3 && baseUnit.evolutions.stage3Branches) {
-      const branch = progress.selectedBranch || 'branchA';
-      evolutionData = baseUnit.evolutions.stage3Branches[branch];
-    }
+    const progress = playerData.unlockedUnits[unitId] || { unitId, level: 1, currentStage: 1, equippedSkills: [] };
+    const stats = calculateUnitStats(baseUnit, progress);
 
-    const levelMult = Math.pow(1.1, progress.level - 1);
-    let atkMult = evolutionData.attackMultiplier * levelMult;
-    let hpMult = evolutionData.hpMultiplier * levelMult;
-    let speedMult = evolutionData.speedMultiplier;
+    if (money < stats.deployCost) return;
 
-    progress.equippedSkills?.forEach((skId) => {
-      const sk = PASSIVE_SKILLS.find((s) => s.id === skId);
-      if (sk) {
-        if (sk.bonusType === 'attack') atkMult *= 1 + sk.value;
-        if (sk.bonusType === 'hp') hpMult *= 1 + sk.value;
-        if (sk.bonusType === 'speed') speedMult *= 1 + sk.value;
-      }
-    });
-
-    setMoney((prev) => prev - baseUnit.deployCost);
+    setMoney((prev) => prev - stats.deployCost);
     setUnitCooldowns((prev) => ({ ...prev, [unitId]: baseUnit.cooldownSeconds }));
 
     const newUnit: ActiveBattleUnit = {
@@ -563,11 +546,11 @@ export default function App() {
       side: 'player',
       x: 0,
       y: (Math.random() - 0.5) * 20,
-      hp: Math.floor(baseUnit.baseHp * hpMult),
-      maxHp: Math.floor(baseUnit.baseHp * hpMult),
-      attack: Math.floor(baseUnit.baseAttack * atkMult),
+      hp: stats.hp,
+      maxHp: stats.hp,
+      attack: stats.attack,
       attackRange: baseUnit.attackRange,
-      movementSpeed: baseUnit.movementSpeed * speedMult,
+      movementSpeed: stats.movementSpeed,
       attackCooldown: 0,
       attackSpeedSeconds: baseUnit.attackSpeedSeconds,
       isAreaAttack: baseUnit.isAreaAttack,
@@ -576,14 +559,16 @@ export default function App() {
       isKnockedBack: false,
       knockbackTimer: 0,
       sizeScale: 1.0,
-      color: evolutionData.color,
-      secondaryColor: evolutionData.secondaryColor,
-      shape: 'cat',
-      name: evolutionData.name,
+      color: stats.displayEvolution.color,
+      secondaryColor: stats.displayEvolution.secondaryColor,
+      shape: stats.displayEvolution.icon,
+      name: stats.displayEvolution.name,
       level: progress.level,
+      rarity: baseUnit.rarity,
       walkFrame: 0,
       attackAnimTimer: 0,
       hitEffectTimer: 0,
+      traitBadge: `第${progress.currentStage}形態`,
     };
 
     setActiveUnits((prev) => [...prev, newUnit]);

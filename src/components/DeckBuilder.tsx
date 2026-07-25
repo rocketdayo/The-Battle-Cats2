@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CatUnitData, PlayerData } from '../types';
 import { CAT_UNITS } from '../data/units';
 import { soundManager } from '../utils/audio';
+import { calculateUnitStats } from '../utils/unitCalculator';
 import {
   Shield,
   ArrowLeft,
@@ -15,6 +16,7 @@ import {
   Sword,
   Target,
   Crosshair,
+  Dna,
 } from 'lucide-react';
 
 interface DeckBuilderProps {
@@ -252,40 +254,25 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({
 
           {activeSelectedUnit && activeUnitProgress ? (
             (() => {
-              let displayEvolution = activeSelectedUnit.evolutions.stage1;
-              if (activeUnitProgress.currentStage === 2) {
-                displayEvolution = activeSelectedUnit.evolutions.stage2;
-              } else if (
-                activeUnitProgress.currentStage === 3 &&
-                activeSelectedUnit.evolutions.stage3Branches
-              ) {
-                const branch = activeUnitProgress.selectedBranch || 'branchA';
-                displayEvolution = activeSelectedUnit.evolutions.stage3Branches[branch];
-              }
-
-              const levelMult = Math.pow(1.1, activeUnitProgress.level - 1);
-              const hp = Math.floor(
-                activeSelectedUnit.baseHp * displayEvolution.hpMultiplier * levelMult
-              );
-              const atk = Math.floor(
-                activeSelectedUnit.baseAttack * displayEvolution.attackMultiplier * levelMult
-              );
-
+              const stats = calculateUnitStats(activeSelectedUnit, activeUnitProgress);
               const isEquipped = playerData.equippedDeck.includes(activeSelectedUnit.id);
 
               return (
                 <div className="space-y-4">
                   {/* Avatar & Title */}
                   <div className="flex items-center gap-3 bg-slate-950 p-3 rounded-2xl border border-slate-800">
-                    <div className="w-16 h-16 rounded-2xl bg-slate-800 border-2 border-amber-400 flex items-center justify-center text-4xl shadow-inner">
-                      {displayEvolution.icon}
+                    <div className="w-16 h-16 rounded-2xl bg-slate-800 border-2 border-amber-400 flex items-center justify-center text-4xl shadow-inner relative">
+                      {stats.displayEvolution.icon}
+                      <span className="absolute bottom-0.5 right-0.5 text-[8px] font-black bg-amber-500 text-slate-950 px-1 rounded">
+                        第{activeUnitProgress.currentStage}形態
+                      </span>
                     </div>
                     <div>
                       <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/30">
                         {activeSelectedUnit.rarity}
                       </span>
                       <h4 className="text-base font-black text-white mt-1">
-                        {displayEvolution.name}
+                        {stats.displayEvolution.name}
                       </h4>
                       <p className="text-xs text-amber-300 font-extrabold">
                         Lv.{activeUnitProgress.level} (第{activeUnitProgress.currentStage}形態)
@@ -297,15 +284,15 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
                       <span className="text-slate-400 font-bold block text-[10px]">❤️ 体力</span>
-                      <span className="text-emerald-400 font-black text-sm">{hp.toLocaleString()}</span>
+                      <span className="text-emerald-400 font-black text-sm">{stats.hp.toLocaleString()}</span>
                     </div>
                     <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
                       <span className="text-slate-400 font-bold block text-[10px]">⚔️ 攻撃力</span>
-                      <span className="text-amber-400 font-black text-sm">{atk.toLocaleString()}</span>
+                      <span className="text-amber-400 font-black text-sm">{stats.attack.toLocaleString()}</span>
                     </div>
                     <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
                       <span className="text-slate-400 font-bold block text-[10px]">💰 生産コスト</span>
-                      <span className="text-cyan-400 font-black text-sm">${activeSelectedUnit.deployCost}</span>
+                      <span className="text-cyan-400 font-black text-sm">${stats.deployCost}</span>
                     </div>
                     <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
                       <span className="text-slate-400 font-bold block text-[10px]">🎯 射程</span>
@@ -326,6 +313,23 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({
                       </span>
                     </div>
                   </div>
+
+                  {/* Equipped Passive Skills Display */}
+                  {stats.equippedPassives.length > 0 && (
+                    <div className="p-2.5 rounded-xl bg-cyan-950/60 border border-cyan-500/40 text-[10px] space-y-1">
+                      <span className="text-cyan-300 font-black flex items-center gap-1">
+                        <Dna className="w-3.5 h-3.5 text-cyan-400" />
+                        遺伝子パッシブ適用中:
+                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {stats.equippedPassives.map((sk) => (
+                          <span key={sk.id} className="px-1.5 py-0.5 rounded bg-cyan-900 text-cyan-200 font-bold">
+                            {sk.icon} {sk.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Action Buttons */}
                   <div className="space-y-2 pt-2">

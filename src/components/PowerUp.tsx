@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CatUnitData, PlayerData } from '../types';
 import { CAT_UNITS } from '../data/units';
 import { soundManager } from '../utils/audio';
+import { calculateUnitStats, getUnitLevelUpCost } from '../utils/unitCalculator';
 import {
   Zap,
   ArrowLeft,
@@ -11,6 +12,7 @@ import {
   ChevronRight,
   TrendingUp,
   Layers,
+  Dna,
 } from 'lucide-react';
 
 interface PowerUpProps {
@@ -54,10 +56,10 @@ export const PowerUp: React.FC<PowerUpProps> = ({
           <div>
             <h2 className="text-lg md:text-xl font-black text-amber-400 tracking-wide flex items-center gap-2">
               <Zap className="w-5 h-5" />
-              パワーアップ (能力強化＆進化)
+              パワーアップ (能力強化＆形態進化)
             </h2>
             <p className="text-[11px] text-slate-400 font-bold">
-              XPを使ってキャラクターを強化・レベル10で強力な姿へ進化させよう！
+              XPを使ってレベルアップ！ Lv.10・Lv.20で新しい姿（形態）へ劇的に変化進化！
             </p>
           </div>
         </div>
@@ -86,13 +88,7 @@ export const PowerUp: React.FC<PowerUpProps> = ({
               const progress = playerData.unlockedUnits[unitId];
               const isSelected = selectedUnitId === unitId;
 
-              let displayData = unit.evolutions.stage1;
-              if (progress.currentStage === 2) {
-                displayData = unit.evolutions.stage2;
-              } else if (progress.currentStage === 3 && unit.evolutions.stage3Branches) {
-                const branch = progress.selectedBranch || 'branchA';
-                displayData = unit.evolutions.stage3Branches[branch];
-              }
+              const stats = calculateUnitStats(unit, progress);
 
               return (
                 <div
@@ -108,11 +104,24 @@ export const PowerUp: React.FC<PowerUpProps> = ({
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <span className="text-3xl filter drop-shadow">{displayData.icon}</span>
+                    <span className="text-3xl filter drop-shadow">{stats.displayEvolution.icon}</span>
                     <div>
-                      <h4 className="text-xs font-black text-white">{displayData.name}</h4>
-                      <p className="text-[10px] text-amber-400 font-extrabold">
-                        Lv.{progress.level} (第{progress.currentStage}形態)
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="text-xs font-black text-white">{stats.displayEvolution.name}</h4>
+                        {progress.currentStage > 1 && (
+                          <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[9px] font-black border border-amber-500/30">
+                            第{progress.currentStage}形態
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-amber-400 font-extrabold flex items-center gap-1 mt-0.5">
+                        <span>Lv.{progress.level}</span>
+                        {stats.equippedPassives.length > 0 && (
+                          <span className="text-cyan-300 flex items-center gap-0.5 bg-cyan-950 px-1 rounded">
+                            <Dna className="w-2.5 h-2.5" />
+                            遺伝子{stats.equippedPassives.length}個
+                          </span>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -128,85 +137,121 @@ export const PowerUp: React.FC<PowerUpProps> = ({
         <div className="md:col-span-7 p-6 rounded-3xl bg-slate-900/90 border-2 border-slate-800 shadow-2xl space-y-5 flex flex-col justify-between">
           {selectedUnit && selectedProgress ? (
             (() => {
-              let displayEvolution = selectedUnit.evolutions.stage1;
-              if (selectedProgress.currentStage === 2) {
-                displayEvolution = selectedUnit.evolutions.stage2;
-              } else if (
-                selectedProgress.currentStage === 3 &&
-                selectedUnit.evolutions.stage3Branches
-              ) {
-                const branch = selectedProgress.selectedBranch || 'branchA';
-                displayEvolution = selectedUnit.evolutions.stage3Branches[branch];
-              }
+              const currentStats = calculateUnitStats(selectedUnit, selectedProgress);
 
-              const levelMult = Math.pow(1.1, selectedProgress.level - 1);
-              const hp = Math.floor(
-                selectedUnit.baseHp * displayEvolution.hpMultiplier * levelMult
-              );
-              const atk = Math.floor(
-                selectedUnit.baseAttack * displayEvolution.attackMultiplier * levelMult
-              );
+              // Next level stats calculation
+              const nextLevelProgress = { ...selectedProgress, level: selectedProgress.level + 1 };
+              const nextStats = calculateUnitStats(selectedUnit, nextLevelProgress);
 
-              // Next level stat preview
-              const nextLevelMult = Math.pow(1.1, selectedProgress.level);
-              const nextHp = Math.floor(
-                selectedUnit.baseHp * displayEvolution.hpMultiplier * nextLevelMult
-              );
-              const nextAtk = Math.floor(
-                selectedUnit.baseAttack * displayEvolution.attackMultiplier * nextLevelMult
-              );
-
-              const levelUpCostXp = Math.floor(1000 * Math.pow(1.25, selectedProgress.level - 1));
+              // Unified level up cost
+              const levelUpCostXp = getUnitLevelUpCost(selectedProgress.level);
               const canAfford = playerData.xp >= levelUpCostXp;
 
               return (
                 <div className="space-y-5">
-                  {/* Unit Card Header */}
-                  <div className="flex items-center gap-4 bg-slate-950 p-4 rounded-3xl border border-slate-800">
-                    <div className="w-20 h-20 rounded-2xl bg-slate-800 border-2 border-amber-400 flex items-center justify-center text-5xl shadow-inner">
-                      {displayEvolution.icon}
-                    </div>
-                    <div>
-                      <span className="text-xs font-black text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/30">
-                        {selectedUnit.rarity}
+                  {/* Unit Card Header with Form Badge */}
+                  <div className="flex items-center gap-4 bg-slate-950 p-4 rounded-3xl border border-slate-800 relative overflow-hidden">
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-amber-400 flex items-center justify-center text-5xl shadow-inner relative">
+                      {currentStats.displayEvolution.icon}
+                      <span className="absolute bottom-1 right-1 text-[9px] font-black bg-amber-500 text-slate-950 px-1 rounded">
+                        第{selectedProgress.currentStage}形態
                       </span>
-                      <h3 className="text-xl font-black text-white mt-1">
-                        {displayEvolution.name}
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/30">
+                          {selectedUnit.rarity}
+                        </span>
+                        <span className="text-[10px] font-black text-cyan-300 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/30">
+                          {currentStats.displayEvolution.title || `第${selectedProgress.currentStage}形態`}
+                        </span>
+                      </div>
+
+                      <h3 className="text-xl font-black text-white">
+                        {currentStats.displayEvolution.name}
                       </h3>
-                      <p className="text-xs text-amber-300 font-extrabold mt-0.5">
-                        Lv.{selectedProgress.level} (第{selectedProgress.currentStage}形態)
+
+                      <p className="text-xs text-slate-400 leading-tight">
+                        {currentStats.displayEvolution.description}
+                      </p>
+
+                      <p className="text-xs text-amber-300 font-extrabold flex items-center gap-2 pt-1">
+                        <span>現在のレベル: Lv.{selectedProgress.level}</span>
                       </p>
                     </div>
                   </div>
 
-                  {/* Level Up Stat Increase Comparison */}
+                  {/* Level Up Stat Comparison */}
                   <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
-                    <h4 className="text-xs font-black text-slate-300 flex items-center gap-1.5">
-                      <TrendingUp className="w-4 h-4 text-emerald-400" />
-                      レベルアップ上昇予測 (Lv.{selectedProgress.level} ➔ Lv.{selectedProgress.level + 1})
-                    </h4>
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                      <h4 className="text-xs font-black text-slate-300 flex items-center gap-1.5">
+                        <TrendingUp className="w-4 h-4 text-emerald-400" />
+                        ステータス詳細 (Lv.{selectedProgress.level} ➔ Lv.{selectedProgress.level + 1})
+                      </h4>
+                      <span className="text-[10px] text-amber-400 font-bold">
+                        1Lvごとに基本性能約10%UP
+                      </span>
+                    </div>
 
                     <div className="grid grid-cols-2 gap-3 text-xs font-bold">
                       <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
-                        <span className="text-slate-400">❤️ 体力</span>
+                        <span className="text-slate-400">❤️ 体力 (HP)</span>
                         <div className="flex items-center gap-1">
-                          <span className="text-white">{hp}</span>
-                          <span className="text-emerald-400">➔ {nextHp}</span>
+                          <span className="text-white">{currentStats.hp.toLocaleString()}</span>
+                          <span className="text-emerald-400">➔ {nextStats.hp.toLocaleString()}</span>
                         </div>
                       </div>
 
                       <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
-                        <span className="text-slate-400">⚔️ 攻撃力</span>
+                        <span className="text-slate-400">⚔️ 攻撃力 (ATK)</span>
                         <div className="flex items-center gap-1">
-                          <span className="text-white">{atk}</span>
-                          <span className="text-amber-400">➔ {nextAtk}</span>
+                          <span className="text-white">{currentStats.attack.toLocaleString()}</span>
+                          <span className="text-amber-400">➔ {nextStats.attack.toLocaleString()}</span>
                         </div>
                       </div>
+
+                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                        <span className="text-slate-400">💰 出撃コスト</span>
+                        <span className="text-amber-300">{currentStats.deployCost} 円</span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                        <span className="text-slate-400">⚡ 移動速度</span>
+                        <span className="text-cyan-300">{currentStats.movementSpeed}</span>
+                      </div>
+                    </div>
+
+                    {/* Applied Passive Gene Bonuses Display Section */}
+                    <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+                      <span className="text-[11px] font-black text-cyan-300 flex items-center gap-1">
+                        <Dna className="w-3.5 h-3.5 text-cyan-400" />
+                        装着中の遺伝子パッシブ効果（自動反映中）
+                      </span>
+
+                      {currentStats.equippedPassives.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {currentStats.equippedPassives.map((sk) => (
+                            <span
+                              key={sk.id}
+                              className="px-2.5 py-1 rounded-xl bg-cyan-950 border border-cyan-500/50 text-cyan-200 text-[10px] font-bold flex items-center gap-1"
+                            >
+                              <span>{sk.icon}</span>
+                              <span>{sk.name}</span>
+                              <span className="text-amber-300">({sk.description})</span>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-slate-500">
+                          遺伝子パッシブは未装着です。「進化ツリー」のパッシブタブから最大2個装着できます。
+                        </p>
+                      )}
                     </div>
                   </div>
 
                   {/* Actions */}
-                  <div className="space-y-3 pt-2">
+                  <div className="space-y-3 pt-1">
                     {/* Level Up Button */}
                     <button
                       onClick={() => {
@@ -237,7 +282,7 @@ export const PowerUp: React.FC<PowerUpProps> = ({
                       className="w-full py-3 rounded-2xl font-black bg-purple-900/80 hover:bg-purple-800 text-purple-200 border-2 border-purple-500/50 text-xs transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
                       <Sparkles className="w-4 h-4 text-amber-300" />
-                      <span>進化ツリー＆分岐進化詳細を開く</span>
+                      <span>形態変化＆進化ツリー詳細を見る</span>
                     </button>
                   </div>
                 </div>
@@ -253,3 +298,4 @@ export const PowerUp: React.FC<PowerUpProps> = ({
     </div>
   );
 };
+
