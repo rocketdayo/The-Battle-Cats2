@@ -63,35 +63,73 @@ export const DEFAULT_SERIAL_CODES: SerialCode[] = [
 
 const CUSTOM_CODES_STORAGE_KEY = 'nyanko_custom_serial_codes';
 
-// Helpers for Base64 cross-device universal encoding
-export function encodeUniversalData(payload: unknown): string {
-  try {
-    const json = JSON.stringify(payload);
-    return btoa(encodeURIComponent(json));
-  } catch {
-    return '';
+const SECRET_SALT = 'NYANKO_GREAT_WAR_SECRET_KEY_2026_SECURITY_SALT';
+
+// Cryptographic FNV-1a hash algorithm for checksum generation
+function computeChecksum(str: string): string {
+  let hash = 0x811c9dc5;
+  const combined = str + SECRET_SALT;
+  for (let i = 0; i < combined.length; i++) {
+    hash ^= combined.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
   }
+  return (hash >>> 0).toString(16).padStart(8, '0').toUpperCase();
 }
 
-export function decodeUniversalData<T>(base64Str: string): T | null {
+// Obfuscate / Encrypt payload string with XOR key & signature
+export function encryptPayload(data: string): string {
+  let xorResult = '';
+  for (let i = 0; i < data.length; i++) {
+    const charCode = data.charCodeAt(i) ^ SECRET_SALT.charCodeAt(i % SECRET_SALT.length);
+    xorResult += String.fromCharCode(charCode);
+  }
+  const base64 = btoa(encodeURIComponent(xorResult)).replace(/=/g, '');
+  const sig = computeChecksum(data);
+  return `${base64}-${sig}`;
+}
+
+// Decrypt and verify payload with signature check
+export function decryptPayload(encryptedStr: string): string | null {
   try {
-    const json = decodeURIComponent(atob(base64Str.trim()));
-    return JSON.parse(json) as T;
+    const parts = encryptedStr.split('-');
+    if (parts.length !== 2) return null;
+    const [base64, expectedSig] = parts;
+    
+    // Restore base64 padding
+    let paddedBase64 = base64;
+    while (paddedBase64.length % 4 !== 0) paddedBase64 += '=';
+
+    const raw = decodeURIComponent(atob(paddedBase64));
+    let decrypted = '';
+    for (let i = 0; i < raw.length; i++) {
+      const charCode = raw.charCodeAt(i) ^ SECRET_SALT.charCodeAt(i % SECRET_SALT.length);
+      decrypted += String.fromCharCode(charCode);
+    }
+
+    // Tamper-proof verification: check signature against decrypted content
+    const actualSig = computeChecksum(decrypted);
+    if (actualSig !== expectedSig) {
+      return null; // Tampering detected!
+    }
+    return decrypted;
   } catch {
     return null;
   }
 }
 
-// Generate Universal Portable Code string for a reward
+// Generate Universal Portable Encrypted Code string for a reward
 export function generateUniversalRewardCode(codeName: string, catFood: number, xp: number = 0): string {
-  const cleanName = codeName.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-  return `${cleanName}-CF${catFood}-XP${xp}`;
+  const cleanName = codeName.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') || 'GIFT';
+  const payload = `REWARD:${cleanName}:${catFood}:${xp}`;
+  const encryptedToken = encryptPayload(payload);
+  return `NYC-${encryptedToken}`;
 }
 
 // Generate Universal Code string for a custom cat
 export function generateCustomCatShareCode(catUnit: CatUnitData): string {
-  const base64 = encodeUniversalData(catUnit);
-  return `CATUNIT-${base64}`;
+  const jsonStr = JSON.stringify(catUnit);
+  const encryptedToken = encryptPayload(jsonStr);
+  return `CATUNIT-${encryptedToken}`;
 }
 
 // Get custom serial codes from localStorage
@@ -165,69 +203,105 @@ export function claimSerialCode(
     };
   }
 
-  // --- CASE 1: Custom Cat Share Code (CATUNIT-<base64>) ---
+  // --- CASE 1: Custom Cat Share Code (CATUNIT-<encryptedToken>) ---
   if (normalizedInput.startsWith('CATUNIT-')) {
-    const base64Part = rawTrimmed.slice(8);
-    const catUnit = decodeUniversalData<CatUnitData>(base64Part);
+    const token = rawTrimmed.slice(8);
+    const decryptedJson = decryptPayload(token);
 
-    if (!catUnit || !catUnit.id || !catUnit.baseName) {
+    if (!decryptedJson) {
       return {
         updatedPlayerData: playerData,
-        result: { success: false, message: '無効なカスタムキャット共有コードです。' },
+        result: {
+          success: false,
+          message: '改ざん検知：無効または暗号化が破壊されたキャット共有コードです！',
+        },
       };
     }
 
-    // Check if unit already owned
-    const existingUnits = playerData.customUnits || [];
-    const alreadyOwns = existingUnits.some((u) => u.id === catUnit.id);
-    const updatedCustomUnits = alreadyOwns ? existingUnits : [...existingUnits, catUnit];
+    try {
+      const catUnit = JSON.parse(decryptedJson) as CatUnitData;
 
-    const updatedPlayerData: PlayerData = {
-      ...playerData,
-      customUnits: updatedCustomUnits,
-      usedSerialCodes: [...usedList, normalizedInput],
-    };
+      if (!catUnit || !catUnit.id || !catUnit.baseName) {
+        return {
+          updatedPlayerData: playerData,
+          result: { success: false, message: '無効なキャットデータ形式です。' },
+        };
+      }
 
-    return {
-      updatedPlayerData,
-      result: {
-        success: true,
-        message: `🐱【全端末共有】特注新種ニャンコ「${catUnit.baseName}」を獲得して解放しました！`,
-        rewardUnit: catUnit,
-      },
-    };
-  }
+      // Check if unit already owned
+      const existingUnits = playerData.customUnits || [];
+      const alreadyOwns = existingUnits.some((u) => u.id === catUnit.id);
+      const updatedCustomUnits = alreadyOwns ? existingUnits : [...existingUnits, catUnit];
 
-  // --- CASE 2: Universal Reward Code Format (e.g. CODE-CF100-XP5000 or GIFT-CF100) ---
-  const cfMatch = normalizedInput.match(/CF(\d+)/i);
-  const xpMatch = normalizedInput.match(/XP(\d+)/i);
-
-  if (cfMatch || xpMatch) {
-    const cfVal = cfMatch ? parseInt(cfMatch[1], 10) : 0;
-    const xpVal = xpMatch ? parseInt(xpMatch[1], 10) : 0;
-
-    if (cfVal > 0 || xpVal > 0) {
       const updatedPlayerData: PlayerData = {
         ...playerData,
-        catFood: playerData.catFood + cfVal,
-        xp: playerData.xp + xpVal,
+        customUnits: updatedCustomUnits,
         usedSerialCodes: [...usedList, normalizedInput],
       };
-
-      const rewardMsg = xpVal > 0
-        ? `🎁【全端末共有コード成功】 猫缶 +${cfVal}個 & XP +${xpVal.toLocaleString()} 獲得！`
-        : `🎁【全端末共有コード成功】 猫缶 +${cfVal}個 獲得！`;
 
       return {
         updatedPlayerData,
         result: {
           success: true,
-          message: rewardMsg,
-          rewardCatFood: cfVal,
-          rewardXp: xpVal,
+          message: `🐱【暗号コード認証成功】特注新種ニャンコ「${catUnit.baseName}」を獲得して解放しました！`,
+          rewardUnit: catUnit,
+        },
+      };
+    } catch {
+      return {
+        updatedPlayerData: playerData,
+        result: { success: false, message: '解読に失敗しました。コードが破損しています。' },
+      };
+    }
+  }
+
+  // --- CASE 2: Universal Encrypted Reward Code Format (NYC-<encryptedToken>) ---
+  if (normalizedInput.startsWith('NYC-')) {
+    const token = rawTrimmed.slice(4);
+    const decrypted = decryptPayload(token);
+
+    if (!decrypted || !decrypted.startsWith('REWARD:')) {
+      return {
+        updatedPlayerData: playerData,
+        result: {
+          success: false,
+          message: '改ざん検知：数字改ざん・不正生成されたシリアルコードです！',
         },
       };
     }
+
+    const parts = decrypted.split(':');
+    if (parts.length < 4) {
+      return {
+        updatedPlayerData: playerData,
+        result: { success: false, message: '不正な報酬構造コードです。' },
+      };
+    }
+
+    const [_, codeName, cfStr, xpStr] = parts;
+    const cfVal = parseInt(cfStr, 10) || 0;
+    const xpVal = parseInt(xpStr, 10) || 0;
+
+    const updatedPlayerData: PlayerData = {
+      ...playerData,
+      catFood: playerData.catFood + cfVal,
+      xp: playerData.xp + xpVal,
+      usedSerialCodes: [...usedList, normalizedInput],
+    };
+
+    const rewardMsg = xpVal > 0
+      ? `🎁【暗号シリアル認証成功】 猫缶 +${cfVal}個 & XP +${xpVal.toLocaleString()} 獲得！`
+      : `🎁【暗号シリアル認証成功】 猫缶 +${cfVal}個 獲得！`;
+
+    return {
+      updatedPlayerData,
+      result: {
+        success: true,
+        message: rewardMsg,
+        rewardCatFood: cfVal,
+        rewardXp: xpVal,
+      },
+    };
   }
 
   // --- CASE 3: Standard / Pre-registered Local or Built-in Codes ---
