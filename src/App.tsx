@@ -1046,7 +1046,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="w-full max-w-5xl text-center pt-2 text-[11px] text-slate-500">
-        にゃんこ大戦争2 - 本家再現ホーム画面＆特注新種創生
+        The-Battle-Cats2 - 本家再現ホーム画面＆特注新種創生
       </footer>
     </div>
   );

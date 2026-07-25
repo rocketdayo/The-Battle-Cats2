@@ -1,6 +1,6 @@
 {
-  "name": "にゃんこ大戦争2",
-  "description": "オリジナルのにゃんこ系キャラクターを召喚・進化させて敵の城を破る本格タワーディフェンスゲーム",
+  "name": "The-Battle-Cats2",
+  "description": "The-Battle-Cats2 - にゃんこ系タワーディフェンスゲーム。特注新種創生、ステージ攻略、パワーアップ、コンソールデバッグコマンド搭載。",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
