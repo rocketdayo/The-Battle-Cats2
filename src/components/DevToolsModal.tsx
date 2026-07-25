@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { PlayerData } from '../types';
-import { Wrench, ShieldCheck, Zap, Sparkles, Check, RefreshCw, Trophy, Key, Plus, ChevronRight } from 'lucide-react';
+import { PlayerData, SerialCode } from '../types';
+import { Wrench, ShieldCheck, Zap, Sparkles, Check, RefreshCw, Trophy, Key, Plus, ChevronRight, Ticket, Trash2 } from 'lucide-react';
 import { soundManager } from '../utils/audio';
+import { getAllSerialCodes, getCustomSerialCodes, saveCustomSerialCodes } from '../utils/serialCodes';
 
 interface DevToolsModalProps {
   playerData: PlayerData;
@@ -23,6 +24,13 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
   const [energyInput, setEnergyInput] = useState<string>(String(playerData.energy));
   const [maxEnergyInput, setMaxEnergyInput] = useState<string>(String(playerData.maxEnergy));
   const [stonesInput, setStonesInput] = useState<string>(String(playerData.evolutionStones || 0));
+
+  // Serial code creator state
+  const [codesList, setCodesList] = useState<SerialCode[]>(getAllSerialCodes());
+  const [newCodeName, setNewCodeName] = useState<string>('');
+  const [newCodeCatFood, setNewCodeCatFood] = useState<string>('50');
+  const [newCodeXp, setNewCodeXp] = useState<string>('0');
+  const [newCodeDesc, setNewCodeDesc] = useState<string>('運営配布プレゼント！');
 
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -63,6 +71,62 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
     setStonesInput(String(num));
     onUpdatePlayerData({ evolutionStones: num });
     showMsg(`進化石を ${num.toLocaleString()} 個に変更しました！`);
+  };
+
+  // Serial Code Creation & Management Handlers
+  const handleAddCustomCode = () => {
+    const trimmed = newCodeName.trim().toUpperCase();
+    if (!trimmed) {
+      alert('コード文字列を入力してください（例: GIFT100）');
+      return;
+    }
+    const catFoodNum = parseInt(newCodeCatFood) || 0;
+    const xpNum = parseInt(newCodeXp) || 0;
+
+    const newCodeItem: SerialCode = {
+      code: trimmed,
+      rewardCatFood: catFoodNum,
+      rewardXp: xpNum,
+      description: newCodeDesc || '特製シリアルコード特典',
+      isActive: true,
+      createdAt: Date.now(),
+    };
+
+    const currentCustoms = getCustomSerialCodes();
+    const updatedCustoms = [...currentCustoms.filter((c) => c.code.toUpperCase() !== trimmed), newCodeItem];
+    saveCustomSerialCodes(updatedCustoms);
+    setCodesList(getAllSerialCodes());
+    setNewCodeName('');
+    showMsg(`シリアルコード【${trimmed}】（猫缶+${catFoodNum}個）を発行保存しました！`);
+  };
+
+  const handleToggleCodeActive = (targetCode: string) => {
+    const currentCustoms = getCustomSerialCodes();
+    const existing = codesList.find((c) => c.code.toUpperCase() === targetCode.toUpperCase());
+    if (!existing) return;
+
+    const updatedCodeItem: SerialCode = {
+      ...existing,
+      isActive: !existing.isActive,
+    };
+
+    const updatedCustoms = [...currentCustoms.filter((c) => c.code.toUpperCase() !== targetCode.toUpperCase()), updatedCodeItem];
+    saveCustomSerialCodes(updatedCustoms);
+    setCodesList(getAllSerialCodes());
+    showMsg(`コード【${targetCode}】の有効状態を切り替えました！`);
+  };
+
+  const handleDeleteCustomCode = (targetCode: string) => {
+    const currentCustoms = getCustomSerialCodes();
+    const updatedCustoms = currentCustoms.filter((c) => c.code.toUpperCase() !== targetCode.toUpperCase());
+    saveCustomSerialCodes(updatedCustoms);
+    setCodesList(getAllSerialCodes());
+    showMsg(`カスタムコード【${targetCode}】を削除しました！`);
+  };
+
+  const handleResetUsedCodes = () => {
+    onUpdatePlayerData({ usedSerialCodes: [] });
+    showMsg('プレイヤーのシリアルコード受領履歴をリセットしました！（全コード再入力可能）');
   };
 
   return (
@@ -417,6 +481,143 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
                   <span>👑 第3章全コンプ (最高峰裏ボス解禁)</span>
                   <span className="text-rose-300 text-[10px]">50/50</span>
                 </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 6. SERIAL CODE MANAGEMENT (シリアルコード発行・管理) */}
+          <div className="p-4 rounded-2xl bg-slate-950 border border-amber-500/50 space-y-3">
+            <div className="flex items-center justify-between border-b border-amber-900/50 pb-2">
+              <h3 className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                <Ticket className="w-4 h-4 text-amber-400" />
+                <span>プレゼントシリアルコード発行・管理（全端末共通）</span>
+              </h3>
+              <button
+                onClick={handleResetUsedCodes}
+                className="px-2.5 py-1 rounded-lg bg-amber-950 hover:bg-amber-900 border border-amber-500/40 text-amber-300 text-[10px] font-bold cursor-pointer"
+              >
+                受領履歴リセット
+              </button>
+            </div>
+
+            {/* Create Code Form */}
+            <div className="space-y-2 bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+              <span className="text-[11px] font-extrabold text-amber-300 block">
+                ✨ 新規シリアルコード発行
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold block mb-0.5">コード文字列:</span>
+                  <input
+                    type="text"
+                    placeholder="例: CATFOOD100"
+                    value={newCodeName}
+                    onChange={(e) => setNewCodeName(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs font-black text-amber-200 uppercase focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold block mb-0.5">付与猫缶数:</span>
+                  <input
+                    type="number"
+                    placeholder="50"
+                    value={newCodeCatFood}
+                    onChange={(e) => setNewCodeCatFood(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs font-black text-amber-200 focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold block mb-0.5">付与XP (任意):</span>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={newCodeXp}
+                    onChange={(e) => setNewCodeXp(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs font-black text-amber-200 focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold block mb-0.5">説明文:</span>
+                <input
+                  type="text"
+                  placeholder="例: 運営からの感謝プレゼント！猫缶100個"
+                  value={newCodeDesc}
+                  onChange={(e) => setNewCodeDesc(e.target.value)}
+                  className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              <button
+                onClick={handleAddCustomCode}
+                className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all shadow cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                <span>シリアルコードを新規登録・保存</span>
+              </button>
+            </div>
+
+            {/* Existing Codes List */}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-extrabold text-slate-400 block">
+                📋 現在有効なシリアルコード一覧 ({codesList.length}件)
+              </span>
+              <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                {codesList.map((item) => {
+                  const isUsed = (playerData.usedSerialCodes || []).includes(item.code.toUpperCase());
+                  return (
+                    <div
+                      key={item.code}
+                      className={`p-2 rounded-xl border flex items-center justify-between text-xs ${
+                        item.isActive
+                          ? 'bg-slate-900 border-amber-500/40 text-amber-200'
+                          : 'bg-slate-950 border-slate-800 text-slate-500 opacity-60'
+                      }`}
+                    >
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-amber-300 tracking-wider">{item.code}</span>
+                          <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold">
+                            猫缶 +{item.rewardCatFood}個
+                          </span>
+                          {item.rewardXp ? (
+                            <span className="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 text-[10px] font-bold">
+                              XP +{item.rewardXp}
+                            </span>
+                          ) : null}
+                          {isUsed && (
+                            <span className="px-1.5 py-0.2 rounded bg-emerald-500/30 text-emerald-300 text-[9px] font-black">
+                              受領済
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-400">{item.description}</p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleToggleCodeActive(item.code)}
+                          className={`px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer ${
+                            item.isActive
+                              ? 'bg-emerald-900/60 border border-emerald-500/50 text-emerald-300'
+                              : 'bg-slate-800 border border-slate-700 text-slate-400'
+                          }`}
+                        >
+                          {item.isActive ? '有効' : '無効'}
+                        </button>
+
+                        <button
+                          onClick={() => handleDeleteCustomCode(item.code)}
+                          title="削除"
+                          className="p-1 rounded-lg hover:bg-rose-950 text-rose-400 transition-all cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

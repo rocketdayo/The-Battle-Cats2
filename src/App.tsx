@@ -1008,6 +1008,7 @@ export default function App() {
           stones={playerData.evolutionStones}
           playerData={playerData}
           onImportSave={(newSave) => setPlayerData(newSave)}
+          onUpdatePlayerData={(updater) => setPlayerData(updater)}
           onClose={() => setCurrentView('HOME')}
           onConvertStonesToXp={(amt) => {
             setPlayerData((prev) => ({

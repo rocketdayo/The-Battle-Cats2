@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { FlaskConical, Sparkles, RefreshCw, Zap, Download, Upload } from 'lucide-react';
+import { FlaskConical, Sparkles, RefreshCw, Zap, Download, Upload, Ticket, Gift } from 'lucide-react';
 import { soundManager } from '../utils/audio';
 import { PlayerData } from '../types';
+import { claimSerialCode } from '../utils/serialCodes';
 
 interface LabModalProps {
   xp: number;
@@ -9,6 +10,7 @@ interface LabModalProps {
   stones: number;
   playerData: PlayerData;
   onImportSave: (saveData: PlayerData) => void;
+  onUpdatePlayerData?: (updater: (prev: PlayerData) => PlayerData) => void;
   onClose: () => void;
   onConvertStonesToXp: (stoneAmount: number) => void;
   onRefillEnergy: () => void;
@@ -20,11 +22,33 @@ export const LabModal: React.FC<LabModalProps> = ({
   stones,
   playerData,
   onImportSave,
+  onUpdatePlayerData,
   onClose,
   onConvertStonesToXp,
   onRefillEnergy,
 }) => {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [serialInput, setSerialInput] = useState<string>('');
+
+  const handleRedeemCode = () => {
+    setErrorMsg(null);
+    const { updatedPlayerData, result } = claimSerialCode(serialInput, playerData);
+
+    if (result.success) {
+      soundManager.playVictory();
+      if (onUpdatePlayerData) {
+        onUpdatePlayerData(() => updatedPlayerData);
+      }
+      setSuccessMsg(result.message);
+      setSerialInput('');
+      setTimeout(() => setSuccessMsg(null), 4000);
+    } else {
+      soundManager.playClick();
+      setErrorMsg(result.message);
+      setTimeout(() => setErrorMsg(null), 3500);
+    }
+  };
 
   const handleStoneConvert = () => {
     if (stones < 1) return;
@@ -108,7 +132,50 @@ export const LabModal: React.FC<LabModalProps> = ({
             </div>
           )}
 
+          {errorMsg && (
+            <div className="p-3 rounded-2xl bg-rose-500/20 border border-rose-400 text-rose-300 text-xs font-bold animate-pulse">
+              {errorMsg}
+            </div>
+          )}
+
           <div className="space-y-3">
+            {/* Serial Code Redemption Section */}
+            <div className="p-4 rounded-2xl bg-slate-950 border border-amber-500/50 space-y-2.5">
+              <div className="text-left flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                    <Ticket className="w-4 h-4 text-amber-400" />
+                    <span>プレゼントシリアルコード入力</span>
+                  </h3>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    コードを入力して猫缶やプレゼント特典を無料で受け取りましょう！
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="例: NYANKO50, CATFOOD100"
+                  value={serialInput}
+                  onChange={(e) => setSerialInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleRedeemCode()}
+                  className="flex-1 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs font-black text-amber-300 placeholder-slate-600 focus:outline-none focus:border-amber-400 uppercase tracking-wide"
+                />
+                <button
+                  onClick={handleRedeemCode}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs transition-all shadow cursor-pointer flex items-center gap-1"
+                >
+                  <Gift className="w-4 h-4" />
+                  <span>受け取る</span>
+                </button>
+              </div>
+
+              <div className="text-[10px] text-slate-500 text-left font-bold flex items-center justify-between">
+                <span>※大文字・小文字は自動調整されます</span>
+                <span className="text-amber-400/80">サンプル: NYANKO50 / CATFOOD100</span>
+              </div>
+            </div>
             {/* Convert Evolution Stones to XP */}
             <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
               <div className="text-left">

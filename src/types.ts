@@ -169,6 +169,15 @@ export interface ParticleEffect {
   maxLife: number;
 }
 
+export interface SerialCode {
+  code: string;
+  rewardCatFood: number;
+  rewardXp?: number;
+  description: string;
+  isActive: boolean;
+  createdAt?: number;
+}
+
 export interface PlayerData {
   catFood: number;
   xp: number;
@@ -182,6 +191,7 @@ export interface PlayerData {
   workerCatLimitLevel: number;
   evolutionStones: number;
   customUnits?: CatUnitData[];
+  usedSerialCodes?: string[]; // Used serial code strings
 }
 
 export type GameView = 'HOME' | 'STAGE_SELECT' | 'DECK_BUILDER' | 'POWER_UP' | 'BATTLE' | 'GACHA' | 'CODEX' | 'LAB' | 'AI_CAT';
