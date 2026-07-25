@@ -1017,29 +1017,28 @@ export default function App() {
 
     // Filter units strictly to official base units (CAT_UNITS only, excluding custom AI units)
     const baseGachaPool = CAT_UNITS;
-    const legendSuperRarePool = baseGachaPool.filter((u) => u.rarity === 'Legend' || u.rarity === 'SuperRare');
+    const legendPool = baseGachaPool.filter((u) => u.rarity === 'Legend');
+    const superRarePool = baseGachaPool.filter((u) => u.rarity === 'SuperRare');
     const rarePool = baseGachaPool.filter((u) => u.rarity === 'Rare');
     const normalPool = baseGachaPool.filter((u) => u.rarity === 'Normal');
 
-    // Thresholds based on gacha type
-    // Nyanko Gacha (50 cat food): SuperRare/Legend = 1.0%, SuperRare = 9.0%, Rare = 25.0%, Normal = 65.0%
-    // Rare Gacha (100 cat food): SuperRare/Legend = 3.0%, SuperRare = 15.0%, Rare = 35.0%, Normal = 47.0%
+    // Probability thresholds based on gacha type
+    // Nyanko Gacha: Legend = 1.0%, SuperRare = 9.0%, Rare = 25.0%, Normal = 65.0%
+    // Rare Gacha: Legend = 3.0%, SuperRare = 15.0%, Rare = 35.0%, Normal = 47.0%
     const isRareGacha = gachaType === 'rare';
-    const legendRate = isRareGacha ? 3.0 : 1.0;
-    const superRareRate = isRareGacha ? 18.0 : 10.0;
-    const rareRate = isRareGacha ? 53.0 : 35.0;
+    const legendThreshold = isRareGacha ? 3.0 : 1.0;
+    const superRareThreshold = legendThreshold + (isRareGacha ? 15.0 : 9.0);
+    const rareThreshold = superRareThreshold + (isRareGacha ? 35.0 : 25.0);
 
     for (let i = 0; i < count; i++) {
       const roll = Math.random() * 100;
       let targetPool: CatUnitData[] = [];
 
-      if (roll < legendRate && legendSuperRarePool.length > 0) {
-        targetPool = legendSuperRarePool;
-      } else if (roll < superRareRate && legendSuperRarePool.length > 0) {
-        // Super Rare pool
-        const superRareOnly = legendSuperRarePool.filter((u) => u.rarity === 'SuperRare');
-        targetPool = superRareOnly.length > 0 ? superRareOnly : legendSuperRarePool;
-      } else if (roll < rareRate && rarePool.length > 0) {
+      if (roll < legendThreshold && legendPool.length > 0) {
+        targetPool = legendPool;
+      } else if (roll < superRareThreshold && superRarePool.length > 0) {
+        targetPool = superRarePool;
+      } else if (roll < rareThreshold && rarePool.length > 0) {
         targetPool = rarePool;
       } else if (normalPool.length > 0) {
         targetPool = normalPool;

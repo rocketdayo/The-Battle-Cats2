@@ -14,6 +14,12 @@ export const CodexModal: React.FC<CodexModalProps> = ({ playerProgress, customUn
   const [selectedUnit, setSelectedUnit] = useState<CatUnitData>(allUnits[0] || CAT_UNITS[0]);
   const [previewStage, setPreviewStage] = useState<1 | 2 | 3>(1);
   const [previewBranch, setPreviewBranch] = useState<'branchA' | 'branchB'>('branchA');
+  const [filterRarity, setFilterRarity] = useState<string>('ALL');
+
+  const filteredUnits = allUnits.filter((u) => {
+    if (filterRarity === 'ALL') return true;
+    return u.rarity === filterRarity;
+  });
 
   const progress = playerProgress[selectedUnit.id];
   const isUnlocked = !!progress;
@@ -45,32 +51,60 @@ export const CodexModal: React.FC<CodexModalProps> = ({ playerProgress, customUn
         {/* Content Layout */}
         <div className="grid grid-cols-1 md:grid-cols-3 flex-1 overflow-hidden">
           {/* Left List */}
-          <div className="p-3 border-r border-slate-800 overflow-y-auto space-y-2 bg-slate-950/40">
-            {allUnits.map((unit) => {
-              const unl = !!playerProgress[unit.id];
-              return (
-                <button
-                  key={unit.id}
-                  onClick={() => {
-                    setSelectedUnit(unit);
-                    setPreviewStage(1);
-                  }}
-                  className={`w-full flex items-center gap-3 p-2.5 rounded-2xl border text-left transition-all ${
-                    selectedUnit.id === unit.id
-                      ? 'bg-amber-500/10 border-amber-400 text-amber-300'
-                      : unl
-                      ? 'bg-slate-800/60 border-slate-700/60 text-slate-200 hover:bg-slate-800'
-                      : 'bg-slate-900/60 border-slate-800/80 text-slate-600'
-                  }`}
-                >
-                  <span className="text-2xl">{unl ? unit.evolutions.stage1.icon : '🔒'}</span>
-                  <div>
-                    <p className="text-xs font-extrabold">{unl ? unit.baseName : '？？？？'}</p>
-                    <p className="text-[10px] text-slate-500">{unit.rarity}</p>
-                  </div>
-                </button>
-              );
-            })}
+          <div className="p-3 border-r border-slate-800 overflow-y-auto space-y-2 bg-slate-950/40 flex flex-col">
+            {/* Rarity Filter Bar */}
+            <div className="flex items-center gap-1 overflow-x-auto pb-1 mb-1 border-b border-slate-800/80">
+              {['ALL', 'Normal', 'Rare', 'SuperRare', 'Legend'].map((r) => {
+                const labelMap: Record<string, string> = {
+                  ALL: '全件',
+                  Normal: 'ノーマル',
+                  Rare: 'レア',
+                  SuperRare: '激レア',
+                  Legend: '伝説',
+                };
+                return (
+                  <button
+                    key={r}
+                    onClick={() => setFilterRarity(r)}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-black whitespace-nowrap transition-all ${
+                      filterRarity === r
+                        ? 'bg-amber-500 text-slate-950 shadow'
+                        : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {labelMap[r]}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="space-y-2 overflow-y-auto flex-1">
+              {filteredUnits.map((unit) => {
+                const unl = !!playerProgress[unit.id];
+                return (
+                  <button
+                    key={unit.id}
+                    onClick={() => {
+                      setSelectedUnit(unit);
+                      setPreviewStage(1);
+                    }}
+                    className={`w-full flex items-center gap-3 p-2.5 rounded-2xl border text-left transition-all ${
+                      selectedUnit.id === unit.id
+                        ? 'bg-amber-500/10 border-amber-400 text-amber-300'
+                        : unl
+                        ? 'bg-slate-800/60 border-slate-700/60 text-slate-200 hover:bg-slate-800'
+                        : 'bg-slate-900/60 border-slate-800/80 text-slate-600'
+                    }`}
+                  >
+                    <span className="text-2xl">{unl ? unit.evolutions.stage1.icon : '🔒'}</span>
+                    <div>
+                      <p className="text-xs font-extrabold">{unl ? unit.baseName : '？？？？'}</p>
+                      <p className="text-[10px] text-amber-400 font-bold">{unit.rarity}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Right Detail Pane */}
