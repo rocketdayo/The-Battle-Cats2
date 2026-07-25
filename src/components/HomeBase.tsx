@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PlayerData } from '../types';
+import { GameView, PlayerData } from '../types';
 import { soundManager } from '../utils/audio';
 import {
   Swords,
@@ -20,11 +20,12 @@ import {
 interface HomeBaseProps {
   playerData: PlayerData;
   onNavigate: (
-    view: 'STAGE_SELECT' | 'POWER_UP' | 'DECK_BUILDER' | 'GACHA' | 'CODEX' | 'LAB' | 'AI_CAT',
+    view: GameView,
     gachaTab?: 'nyanko' | 'rare'
   ) => void;
   isMuted: boolean;
   onToggleMute: () => void;
+  onOpenDevTools?: () => void;
 }
 
 const CAT_ADVICES = [
@@ -335,7 +336,10 @@ export const HomeBase: React.FC<HomeBaseProps> = ({
       <div className="relative z-10 p-3 bg-amber-950/90 border-t-2 border-amber-700/80 flex items-center justify-between text-xs md:text-sm font-black">
         <div className="flex items-center gap-2">
           <button
-            onClick={() => onNavigate('LAB')}
+            onClick={() => {
+              soundManager.playClick();
+              onNavigate('ITEM_SHOP');
+            }}
             className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-800 hover:bg-amber-700 border border-amber-400 text-amber-100 transition-all cursor-pointer"
           >
             <ShoppingBag className="w-4 h-4 text-amber-300" />
@@ -349,8 +353,11 @@ export const HomeBase: React.FC<HomeBaseProps> = ({
             <span>🐟</span>
             <span className="text-base text-white">{playerData.catFood}</span>
             <button
-              onClick={() => onNavigate('LAB')}
-              className="ml-1 w-4 h-4 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-bold text-xs"
+              onClick={() => {
+                soundManager.playClick();
+                onNavigate('CAT_FOOD_SHOP');
+              }}
+              className="ml-1 w-4 h-4 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center justify-center font-bold text-xs cursor-pointer transition-all"
             >
               +
             </button>

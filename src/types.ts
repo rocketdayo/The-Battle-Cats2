@@ -192,6 +192,8 @@ export interface PlayerData {
   evolutionStones: number;
   customUnits?: CatUnitData[];
   usedSerialCodes?: string[]; // Used serial code strings
+  items?: Record<string, number>; // Item inventory e.g. { catBon: 3, sniper: 2, cpu: 5, treasureRadar: 1 }
+  lastDailyCatFoodTimestamp?: number;
 }
 
-export type GameView = 'HOME' | 'STAGE_SELECT' | 'DECK_BUILDER' | 'POWER_UP' | 'BATTLE' | 'GACHA' | 'CODEX' | 'LAB' | 'AI_CAT';
+export type GameView = 'HOME' | 'STAGE_SELECT' | 'DECK_BUILDER' | 'POWER_UP' | 'BATTLE' | 'GACHA' | 'CODEX' | 'LAB' | 'ITEM_SHOP' | 'CAT_FOOD_SHOP' | 'AI_CAT';

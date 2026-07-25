@@ -57,9 +57,18 @@ export const StageSelect: React.FC<StageSelectProps> = ({
     return playerData.clearedStages.includes(prevStageId);
   };
 
-  // Check chapter unlocked status
-  const isCh2Unlocked = playerData.clearedStages.includes('stage_1_50') || playerData.clearedStages.includes('stage_1_6');
-  const isCh3Unlocked = playerData.clearedStages.includes('stage_2_50') || playerData.clearedStages.includes('stage_2_6');
+  // Check chapter unlocked status (Must clear Stage 50 of previous chapter)
+  const isCh2Unlocked = playerData.clearedStages.includes('stage_1_50');
+  const isCh3Unlocked = playerData.clearedStages.includes('stage_2_50');
+
+  // Guard against illegal chapter selection
+  useEffect(() => {
+    if (selectedChapter === 2 && !isCh2Unlocked) {
+      setSelectedChapter(1);
+    } else if (selectedChapter === 3 && !isCh3Unlocked) {
+      setSelectedChapter(1);
+    }
+  }, [selectedChapter, isCh2Unlocked, isCh3Unlocked]);
 
   const getChapterLockStatus = (chId: number) => {
     if (chId === 1) return { unlocked: true };

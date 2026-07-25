@@ -20,6 +20,8 @@ import { EvolutionModal } from './components/EvolutionModal';
 import { GachaModal } from './components/GachaModal';
 import { CodexModal } from './components/CodexModal';
 import { LabModal } from './components/LabModal';
+import { ItemShopModal } from './components/ItemShopModal';
+import { CatFoodShopModal } from './components/CatFoodShopModal';
 import { AiCatGeneratorModal } from './components/AiCatGeneratorModal';
 import { DevToolsModal } from './components/DevToolsModal';
 import { STAGES } from './data/stages';
@@ -229,6 +231,10 @@ export default function App() {
   const [cannonLaserX, setCannonLaserX] = useState<number | null>(null);
 
   const [activeUnits, setActiveUnits] = useState<ActiveBattleUnit[]>([]);
+  const activeUnitsRef = useRef<ActiveBattleUnit[]>([]);
+  useEffect(() => {
+    activeUnitsRef.current = activeUnits;
+  }, [activeUnits]);
   const [unitCooldowns, setUnitCooldowns] = useState<Record<string, number>>({});
   const [floatingTexts, setFloatingTexts] = useState<FloatingText[]>([]);
   const [particles, setParticles] = useState<ParticleEffect[]>([]);
@@ -249,6 +255,9 @@ export default function App() {
       hpTriggerFired?: boolean;
     };
   }>({});
+
+  // CPU AI Commander Action Cooldown Ref
+  const aiActionCooldownRef = useRef<number>(0);
 
   // Combined base and custom units array
   const allUnits: CatUnitData[] = [...CAT_UNITS, ...(playerData.customUnits || [])];
@@ -497,22 +506,166 @@ export default function App() {
         handleDefeat();
       }
 
-      // 6. Auto Battle AI Behavior
+      // 6. Smart Auto Battle AI Behavior (ニャンコCPU AI Commander)
       if (isAutoBattle && activeStage) {
-        const upgradeCost = Math.floor(100 * Math.pow(1.3, workerCatLevel - 1));
-        if (money >= upgradeCost && workerCatLevel < 8) {
-          handleUpgradeWorkerCat();
-        } else {
-          playerData.equippedDeck.forEach((unitId) => {
-            const unit = CAT_UNITS.find((u) => u.id === unitId);
-            if (
-              unit &&
-              money >= unit.deployCost &&
-              (!unitCooldowns[unit.id] || unitCooldowns[unit.id] <= 0)
-            ) {
-              handleDeployUnit(unitId);
-            }
+        aiActionCooldownRef.current -= dt;
+
+        if (aiActionCooldownRef.current <= 0) {
+          const currentActiveUnits = activeUnitsRef.current;
+          const enemyUnits = currentActiveUnits.filter((u) => u.side === 'enemy');
+          const playerUnits = currentActiveUnits.filter((u) => u.side === 'player');
+
+          // Relative progress ratio calculations (0.0 = player castle x=0, 1.0 = enemy castle x=1000)
+          let closestEnemyX = 1000;
+          enemyUnits.forEach((e) => {
+            if (e.x < closestEnemyX) closestEnemyX = e.x;
           });
+
+          let furthestPlayerX = 0;
+          playerUnits.forEach((p) => {
+            if (p.x > furthestPlayerX) furthestPlayerX = p.x;
+          });
+
+          // Enemy Advance Ratio: 0.0 (at enemy castle) to 1.0 (at player castle)
+          const enemyAdvanceRatio = Math.max(0, Math.min(1, (1000 - closestEnemyX) / 1000));
+          const playerPushRatio = Math.max(0, Math.min(1, furthestPlayerX / 1000));
+
+          const castleHpRatio = playerCastleHp / playerCastleMaxHp;
+          const isUnderPressure =
+            enemyAdvanceRatio >= 0.65 || castleHpRatio < 0.5 || (enemyUnits.length >= 4 && enemyAdvanceRatio >= 0.45);
+
+          // A. Strategic Cannon Firing
+          if (cannonChargePercent >= 100 && (enemyAdvanceRatio >= 0.5 || enemyUnits.length >= 3)) {
+            handleFireCannon();
+            aiActionCooldownRef.current = 0.6;
+          } else {
+            // Gather all deck unit information with their calculated stats
+            const deckUnitsStats = playerData.equippedDeck
+              .map((unitId) => {
+                const baseUnit = allUnits.find((u) => u.id === unitId);
+                if (!baseUnit) return null;
+                const progress = playerData.unlockedUnits[unitId] || {
+                  unitId,
+                  level: 1,
+                  currentStage: 1,
+                  equippedSkills: [],
+                };
+                const stats = calculateUnitStats(baseUnit, progress);
+                const cd = unitCooldowns[unitId] || 0;
+                return {
+                  unitId,
+                  baseUnit,
+                  stats,
+                  cooldown: cd,
+                  isMeatshield: stats.deployCost <= 250,
+                  isHeavy: stats.deployCost > 250,
+                };
+              })
+              .filter((u): u is NonNullable<typeof u> => u !== null);
+
+            // Active units count on field
+            let activeMeatshieldCount = 0;
+            let activeHeavyCount = 0;
+
+            playerUnits.forEach((pu) => {
+              const match = deckUnitsStats.find((d) => d.unitId === pu.unitId);
+              if (match) {
+                if (match.isMeatshield) activeMeatshieldCount++;
+                if (match.isHeavy) activeHeavyCount++;
+              } else {
+                activeMeatshieldCount++;
+              }
+            });
+
+            // Worker Cat Upgrade Cost & Target
+            const workerUpgradeCost = Math.floor(100 * Math.pow(1.3, workerCatLevel - 1));
+            const maxMoney = 100 + (workerCatLevel - 1) * 200;
+
+            // Check if any deck unit requires higher max money capacity
+            const minCostForHeavyInDeck = Math.min(
+              ...deckUnitsStats.filter((u) => u.isHeavy).map((u) => u.stats.deployCost),
+              9999
+            );
+            const needsWorkerUpgradeForDeck = minCostForHeavyInDeck < 9999 && minCostForHeavyInDeck > maxMoney;
+
+            // Worker Cat upgrade decision
+            let shouldUpgradeWorker = false;
+            if (workerCatLevel < 8 && money >= workerUpgradeCost) {
+              if (needsWorkerUpgradeForDeck && !isUnderPressure) {
+                shouldUpgradeWorker = true;
+              } else if (!isUnderPressure) {
+                if (workerCatLevel <= 3 && (enemyAdvanceRatio < 0.4 || activeMeatshieldCount >= 1)) {
+                  shouldUpgradeWorker = true;
+                } else if (money >= maxMoney * 0.85) {
+                  shouldUpgradeWorker = true;
+                }
+              }
+            }
+
+            if (shouldUpgradeWorker) {
+              handleUpgradeWorkerCat();
+              aiActionCooldownRef.current = 0.5;
+            } else {
+              // Identify heavy attackers in deck that are off cooldown
+              const readyHeavies = deckUnitsStats.filter((u) => u.isHeavy && u.cooldown <= 0);
+
+              // Target heavy unit (prefer highest cost)
+              const targetHeavyUnit = readyHeavies.sort((a, b) => b.stats.deployCost - a.stats.deployCost)[0];
+
+              if (isUnderPressure) {
+                // EMERGENCY DEFENSE MODE: Spawn cheapest ready units to build a wall immediately!
+                const readyUnits = deckUnitsStats.filter((u) => u.cooldown <= 0 && money >= u.stats.deployCost);
+                if (readyUnits.length > 0) {
+                  readyUnits.sort((a, b) => a.stats.deployCost - b.stats.deployCost);
+                  handleDeployUnit(readyUnits[0].unitId);
+                  aiActionCooldownRef.current = 0.35;
+                }
+              } else if (targetHeavyUnit) {
+                // STRATEGIC SAVING MODE for Heavy Unit
+                if (money >= targetHeavyUnit.stats.deployCost) {
+                  // Reached required funds! Deploy the heavy unit!
+                  handleDeployUnit(targetHeavyUnit.unitId);
+                  aiActionCooldownRef.current = 0.8;
+                } else {
+                  // Money is being saved for targetHeavyUnit.
+                  // Only deploy 1 cheap meatshield if front line is completely empty, otherwise SAVE MONEY!
+                  if (activeMeatshieldCount < 1 && enemyAdvanceRatio > 0.35) {
+                    const cheapMeatshields = deckUnitsStats.filter(
+                      (u) => u.isMeatshield && u.cooldown <= 0 && money >= u.stats.deployCost
+                    );
+                    if (cheapMeatshields.length > 0) {
+                      handleDeployUnit(cheapMeatshields[0].unitId);
+                      aiActionCooldownRef.current = 0.8; // Give long cooldown to allow money accumulating
+                    } else {
+                      aiActionCooldownRef.current = 0.2; // Hold money
+                    }
+                  } else {
+                    // Front line has a defender or enemy is far away -> HOLD MONEY!
+                    aiActionCooldownRef.current = 0.2;
+                  }
+                }
+              } else {
+                // NORMAL / PUSHING MODE
+                const readyUnits = deckUnitsStats.filter((u) => u.cooldown <= 0 && money >= u.stats.deployCost);
+                if (readyUnits.length > 0) {
+                  const readyMeatshields = readyUnits.filter((u) => u.isMeatshield);
+                  const readyHeavies = readyUnits.filter((u) => u.isHeavy);
+
+                  if (activeMeatshieldCount < 1 && readyMeatshields.length > 0) {
+                    handleDeployUnit(readyMeatshields[0].unitId);
+                    aiActionCooldownRef.current = 0.5;
+                  } else if (readyHeavies.length > 0) {
+                    readyHeavies.sort((a, b) => b.stats.deployCost - a.stats.deployCost);
+                    handleDeployUnit(readyHeavies[0].unitId);
+                    aiActionCooldownRef.current = 0.7;
+                  } else {
+                    handleDeployUnit(readyUnits[0].unitId);
+                    aiActionCooldownRef.current = 0.5;
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }, 50);
@@ -1049,6 +1202,22 @@ export default function App() {
               energy: prev.maxEnergy,
             }));
           }}
+        />
+      )}
+
+      {currentView === 'ITEM_SHOP' && (
+        <ItemShopModal
+          playerData={playerData}
+          onUpdatePlayerData={(updater) => setPlayerData(updater)}
+          onClose={() => setCurrentView('HOME')}
+        />
+      )}
+
+      {currentView === 'CAT_FOOD_SHOP' && (
+        <CatFoodShopModal
+          playerData={playerData}
+          onUpdatePlayerData={(updater) => setPlayerData(updater)}
+          onClose={() => setCurrentView('HOME')}
         />
       )}
 
