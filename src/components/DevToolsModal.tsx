@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { PlayerData, SerialCode } from '../types';
 import { Wrench, ShieldCheck, Zap, Sparkles, Check, RefreshCw, Trophy, Key, Plus, ChevronRight, Ticket, Trash2, Copy, Share2 } from 'lucide-react';
 import { soundManager } from '../utils/audio';
-import { getAllSerialCodes, getCustomSerialCodes, saveCustomSerialCodes, generateUniversalRewardCode } from '../utils/serialCodes';
+import { getAllSerialCodes, getCustomSerialCodes, saveCustomSerialCodes, generateUniversalRewardCode, DEFAULT_SERIAL_CODES } from '../utils/serialCodes';
 
 interface DevToolsModalProps {
   playerData: PlayerData;
@@ -571,6 +571,9 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
               <div className="max-h-52 overflow-y-auto space-y-1.5 pr-1">
                 {codesList.map((item) => {
                   const isUsed = (playerData.usedSerialCodes || []).includes(item.code.toUpperCase());
+                  const isDefaultCode = DEFAULT_SERIAL_CODES.some(
+                    (d) => d.code.toUpperCase() === item.code.toUpperCase()
+                  );
                   const universalCode = generateUniversalRewardCode(item.code, item.rewardCatFood, item.rewardXp || 0);
 
                   return (
@@ -625,25 +628,31 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
                         </div>
                       </div>
 
-                      {/* Universal Share Code Row */}
-                      <div className="p-1.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between text-[10px]">
-                        <div className="flex items-center gap-1 text-slate-400 font-mono">
-                          <Share2 className="w-3 h-3 text-cyan-400" />
-                          <span>スマホ全端末共有コード:</span>
-                          <strong className="text-cyan-300 select-all">{universalCode}</strong>
-                        </div>
+                      {/* Universal Share Code Row for Custom-generated Codes */}
+                      {!isDefaultCode ? (
+                        <div className="p-1.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between text-[10px]">
+                          <div className="flex items-center gap-1 text-slate-400 font-mono">
+                            <Share2 className="w-3 h-3 text-cyan-400" />
+                            <span>カスタム暗号共有コード:</span>
+                            <strong className="text-cyan-300 select-all">{universalCode}</strong>
+                          </div>
 
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(universalCode);
-                            showMsg(`スマホ共有用コード【${universalCode}】をクリップボードにコピーしました！`);
-                          }}
-                          className="px-2 py-0.5 rounded bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 font-bold flex items-center gap-1 cursor-pointer transition-all"
-                        >
-                          <Copy className="w-3 h-3" />
-                          <span>共有コードコピー</span>
-                        </button>
-                      </div>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(universalCode);
+                              showMsg(`暗号共有用コード【${universalCode}】をコピーしました！`);
+                            }}
+                            className="px-2 py-0.5 rounded bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 font-bold flex items-center gap-1 cursor-pointer transition-all"
+                          >
+                            <Copy className="w-3 h-3" />
+                            <span>コードコピー</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-[10px] text-slate-500 font-bold text-left pt-0.5">
+                          ※組み込み標準コードのため、全端末で直接「{item.code}」と入力して使用できます
+                        </div>
+                      )}
                     </div>
                   );
                 })}
