@@ -296,6 +296,18 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Helper for Worker Cat max money & upgrade cost
+  const WORKER_MAX_MONEY_TABLE = [200, 450, 800, 1400, 2400, 4000, 6000, 9000];
+  const WORKER_UPGRADE_COST_TABLE = [60, 120, 200, 350, 600, 1000, 1600];
+
+  const getWorkerMaxMoney = (level: number) => {
+    return WORKER_MAX_MONEY_TABLE[Math.min(Math.max(0, level - 1), WORKER_MAX_MONEY_TABLE.length - 1)];
+  };
+
+  const getWorkerUpgradeCost = (level: number) => {
+    return WORKER_UPGRADE_COST_TABLE[Math.min(Math.max(0, level - 1), WORKER_UPGRADE_COST_TABLE.length - 1)] || 9999;
+  };
+
   // --- Start Battle Handler ---
   const handleStartBattle = (
     stage: StageData,
@@ -378,8 +390,7 @@ export default function App() {
       setBattleTimerSeconds((prev) => prev + dt);
 
       // 1. Update Money & Cannon Charge
-      const maxMoneyTable = [100, 450, 800, 1200, 2000, 3200, 5000, 7500];
-      const maxMoney = maxMoneyTable[Math.min(workerCatLevel - 1, 7)];
+      const maxMoney = getWorkerMaxMoney(workerCatLevel);
       setMoney((prev) => Math.min(maxMoney, prev + dt * (15 + workerCatLevel * 20)));
       setCannonChargePercent((prev) => Math.min(100, prev + dt * 4));
 
@@ -648,8 +659,8 @@ export default function App() {
             });
 
             // Worker Cat Upgrade Cost & Target
-            const workerUpgradeCost = Math.floor(100 * Math.pow(1.3, workerCatLevel - 1));
-            const maxMoney = 100 + (workerCatLevel - 1) * 200;
+            const workerUpgradeCost = getWorkerUpgradeCost(workerCatLevel);
+            const maxMoney = getWorkerMaxMoney(workerCatLevel);
 
             // Check if any deck unit requires higher max money capacity
             const minCostForHeavyInDeck = Math.min(
@@ -835,12 +846,6 @@ export default function App() {
     };
 
     setActiveUnits((prev) => [...prev, newUnit]);
-  };
-
-  // Helper for Worker Cat upgrade cost
-  const getWorkerUpgradeCost = (level: number) => {
-    const costs = [150, 260, 450, 800, 1400, 2400, 4200];
-    return costs[Math.min(level - 1, costs.length - 1)] || 9999;
   };
 
   // --- Worker Cat Upgrade Handler ---
@@ -1157,7 +1162,7 @@ export default function App() {
             <BattleUI
               stage={activeStage}
               money={money}
-              maxMoney={[100, 450, 800, 1200, 2000, 3200, 5000, 7500][Math.min(workerCatLevel - 1, 7)]}
+              maxMoney={getWorkerMaxMoney(workerCatLevel)}
               workerCatLevel={workerCatLevel}
               workerUpgradeCost={getWorkerUpgradeCost(workerCatLevel)}
               cannonChargePercent={cannonChargePercent}
