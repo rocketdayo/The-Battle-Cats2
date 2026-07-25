@@ -42,8 +42,8 @@ const CHAPTER_3_LANDMARKS = [
 
 export const TUTORIAL_STAGE: StageData = {
   id: 'stage_tutorial_0',
-  chapterId: 0,
-  chapterName: 'チュートリアル',
+  chapterId: 1,
+  chapterName: '第1章: 日本全国制覇編',
   stageNumber: 0,
   name: 'はじめての戦い',
   description: '基本を学ぶためのステージ。ネコを出撃させて敵を倒そう！',

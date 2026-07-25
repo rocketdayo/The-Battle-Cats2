@@ -1173,6 +1173,7 @@ export default function App() {
 
             <BattleUI
               stage={activeStage}
+              isTutorialStage={activeStage.id === 'stage_tutorial_0'}
               money={money}
               maxMoney={getWorkerMaxMoney(workerCatLevel)}
               workerCatLevel={workerCatLevel}

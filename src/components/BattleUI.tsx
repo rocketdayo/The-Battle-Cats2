@@ -5,6 +5,7 @@ import { soundManager } from '../utils/audio';
 
 interface BattleUIProps {
   stage: StageData;
+  isTutorialStage?: boolean;
   money: number;
   maxMoney: number;
   workerCatLevel: number;
@@ -29,6 +30,7 @@ interface BattleUIProps {
 
 export const BattleUI: React.FC<BattleUIProps> = ({
   stage,
+  isTutorialStage,
   money,
   maxMoney,
   workerCatLevel,
@@ -53,6 +55,11 @@ export const BattleUI: React.FC<BattleUIProps> = ({
   return (
     <div className="w-full space-y-3 font-sans select-none relative">
       {/* Wave Alert Banner */}
+      {isTutorialStage && (
+        <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-40 px-6 py-2 rounded-full bg-amber-400 text-slate-950 font-black text-xs md:text-sm border-2 border-amber-600 shadow-2xl animate-pulse tracking-widest whitespace-nowrap flex items-center gap-2">
+           <span>画面下のネコカードをタップして出撃！</span>
+        </div>
+      )}
       {activeWaveText && (
         <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-30 px-6 py-2 rounded-full bg-gradient-to-r from-rose-600 via-amber-400 to-rose-600 text-slate-950 font-black text-xs md:text-sm border-2 border-amber-300 shadow-2xl animate-bounce tracking-widest whitespace-nowrap flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-amber-950" />
