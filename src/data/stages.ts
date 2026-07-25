@@ -82,6 +82,10 @@ function generate50Stages(
     const isBossStage = stageNum % 10 === 0 || stageNum === 50;
     const isMidBoss = stageNum % 5 === 0 && !isBossStage;
     const landmark = landmarks[i] || `要塞ポイント No.${stageNum}`;
+    
+    // Define bosses for each 10th stage
+    const bossList = ['e_super_gorilla', 'e_ghost_ufo', 'e_boss_dragon', 'e_boss_robot', 'e_boss_dark_dragon'];
+    const bossId = bossList[Math.floor((stageNum / 10) - 1) % bossList.length];
 
     // Calculate scaling difficulties
     const stageHpScale = Math.floor(baseCastleHp * (1 + (i * 0.18) + (i * i * 0.005)));
@@ -116,22 +120,68 @@ function generate50Stages(
       });
     }
 
+    if (i >= 24) {
+      enemySpawns.push({
+        enemyId: 'e_gorilla',
+        spawnTimeSeconds: 10,
+        repeatIntervalSeconds: Math.max(5, 15 - Math.floor(i / 5)),
+        waveName: `猛攻！重装メカゴリラ`,
+      });
+    }
+
+    if (isBossStage) {
+      enemySpawns.push({
+        enemyId: bossId,
+        spawnTimeSeconds: 5,
+        repeatIntervalSeconds: 20,
+        waveName: `ボス強襲！`,
+      });
+    }
+
     if (i >= 12 || chapterId >= 2) {
       enemySpawns.push({
-        enemyId: 'e_alien_ufo',
+        enemyId: 'e_ufo',
         spawnTimeSeconds: 12,
         repeatIntervalSeconds: Math.max(10, 22 - Math.floor(i / 5)),
         waveName: `第四陣: エイリアンUFO隊`,
       });
     }
 
-    if (isBossStage || i >= 20 || chapterId === 3) {
+    if (i >= 25 && chapterId >= 2) {
       enemySpawns.push({
-        enemyId: 'e_dragon_boss',
+        enemyId: 'e_super_gorilla',
+        spawnTimeSeconds: 15,
+        repeatIntervalSeconds: Math.max(15, 30 - Math.floor(i / 4)),
+        waveName: `第五陣: 暴君メカゴリラ・デラックス`,
+      });
+    }
+
+    if (i >= 30 && chapterId >= 2) {
+      enemySpawns.push({
+        enemyId: 'e_ghost_ufo',
+        spawnTimeSeconds: 20,
+        repeatIntervalSeconds: Math.max(20, 35 - Math.floor(i / 4)),
+        waveName: `第六陣: 幽霊侵略者UFO`,
+      });
+    }
+
+    if (isBossStage || i >= 20 || chapterId >= 2) {
+      enemySpawns.push({
+        enemyId: 'e_boss_dragon',
         spawnTimeSeconds: isBossStage ? 2 : 20,
         castleHpPercentTrigger: isBossStage ? 80 : 40,
         repeatIntervalSeconds: isBossStage ? 35 : 50,
         waveName: isBossStage ? `⚠️ 超大型ボス強臨！！` : `強敵ドラゴン参戦`,
+      });
+    }
+    
+    if (i >= 40 && chapterId === 3) {
+      enemySpawns.push({
+        enemyId: 'e_boss_dark_dragon',
+        spawnTimeSeconds: 5,
+        castleHpPercentTrigger: 50,
+        repeatIntervalSeconds: 60,
+        waveName: `💀【第3章大ボス】暗黒竜・冥界王！！`,
       });
     }
 
@@ -219,13 +269,13 @@ export const SECRET_STAGE_1: StageData = {
       waveName: '⚠️第一陣: 強撃メカゴリラ軍団猛攻',
     },
     {
-      enemyId: 'e_alien_ufo',
+      enemyId: 'e_ufo',
       spawnTimeSeconds: 2,
       repeatIntervalSeconds: 4,
       waveName: '⚠️第二陣: エイリアンUFO爆撃部隊',
     },
     {
-      enemyId: 'e_dragon_boss',
+      enemyId: 'e_boss_dragon',
       spawnTimeSeconds: 3,
       castleHpPercentTrigger: 99,
       repeatIntervalSeconds: 15,
@@ -259,7 +309,7 @@ export const SECRET_STAGE_2: StageData = {
   castleColor: '#581c87',
   enemySpawns: [
     {
-      enemyId: 'e_alien_ufo',
+      enemyId: 'e_ufo',
       spawnTimeSeconds: 1,
       repeatIntervalSeconds: 2,
       waveName: '⚠️第一陣: 侵略型エイリアンUFO大群',
@@ -299,13 +349,13 @@ export const SECRET_STAGE_3: StageData = {
   castleColor: '#9f1239',
   enemySpawns: [
     {
-      enemyId: 'e_dragon_boss',
+      enemyId: 'e_boss_dragon',
       spawnTimeSeconds: 1,
       repeatIntervalSeconds: 8,
       waveName: '💀【終焉裏ボス】壊滅神龍・即時怒涛降臨！',
     },
     {
-      enemyId: 'e_alien_ufo',
+      enemyId: 'e_ufo',
       spawnTimeSeconds: 2,
       repeatIntervalSeconds: 2,
       waveName: '⚠️第二陣: 次元消滅UFO特攻隊',

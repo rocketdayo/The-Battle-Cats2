@@ -554,6 +554,9 @@ export default function App() {
                 }
 
                 addFloatingText(closestEnemy.x, unit.attack.toFixed(0), isPlayer ? '#facc15' : '#ef4444');
+                for (let i = 0; i < 5; i++) {
+                   addParticle(closestEnemy.x, (Math.random() - 0.5) * 50, '#facc15', (Math.random() - 0.5) * 20, (Math.random() - 0.5) * 20, Math.random() * 5 + 2, 20);
+                }
               } else {
                 if (isPlayer) {
                   setEnemyCastleHp((hp) => Math.max(0, hp - unit.attack));
@@ -586,6 +589,18 @@ export default function App() {
             opacity: ft.opacity - 0.04,
           }))
           .filter((ft) => ft.opacity > 0)
+      );
+
+      // Update Particles
+      setParticles((prev) =>
+        prev
+          .map((p) => ({
+            ...p,
+            x: p.x + p.vx,
+            y: p.y + p.vy,
+            life: p.life - 1,
+          }))
+          .filter((p) => p.life > 0)
       );
 
       // 5. Check Win / Loss Conditions
@@ -909,6 +924,23 @@ export default function App() {
         opacity: 1.0,
         scale: 1.2,
         vy: -1.5,
+      },
+    ]);
+  };
+
+  const addParticle = (x: number, y: number, color: string, vx: number, vy: number, size: number, life: number) => {
+    setParticles((prev) => [
+      ...prev,
+      {
+        id: `p_${Date.now()}_${Math.random()}`,
+        x,
+        y,
+        vx,
+        vy,
+        size,
+        color,
+        life,
+        maxLife: life,
       },
     ]);
   };
@@ -1253,6 +1285,15 @@ export default function App() {
               onClick={() => {
                 soundManager.stopBgm();
                 setBattleResult(null);
+                
+                // Find and set next stage
+                if (activeStage) {
+                    const currentIndex = STAGES.findIndex(s => s.id === activeStage.id);
+                    if (currentIndex !== -1 && currentIndex < STAGES.length - 1) {
+                        setActiveStage(STAGES[currentIndex + 1]);
+                    }
+                }
+
                 setCurrentView('STAGE_SELECT');
               }}
               className="w-full py-3.5 rounded-2xl font-black bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-xl transition-all cursor-pointer"
