@@ -31,7 +31,7 @@ interface HomeBaseProps {
 const CAT_ADVICES = [
   'アイテムのネコボンを使えば働きネコのレベルが最大の状態でステージを開始できるにゃ！詰まっているステージがあれば使ってみるといいにゃ！',
   '【キャラクター編成】で低コストの「ちびネコ」や「盾ネコ」を壁として大量生産し、後ろから長射程のネコで攻撃するのが勝利の鉄則だにゃ！',
-  '【特注新種創生】では、自分だけのオリジナルネコを自由に生成してデッキに加えることができるにゃ！すごい時代になったにゃ〜！',
+  '【AI生成】では、自分だけのオリジナルネコを自由に生成してデッキに加えることができるにゃ！すごい時代になったにゃ〜！',
   '【パワーアップ】でXPを使ってネコをLv.10まで上げると、第2形態へ超進化するにゃ！さらに進化石で第3形態へ分岐進化するにゃ！',
   '敵城に攻撃を当てるとボスが出現することが多いにゃ！あらかじめ壁ネコを十分に溜めてから城を攻めるんだにゃ！',
   '神社ガチャで新しいレアネコを獲得すると戦力が大幅にアップするにゃ！猫缶が貯まったら引いてみるにゃ！',
@@ -228,7 +228,7 @@ export const HomeBase: React.FC<HomeBaseProps> = ({
               <div className="w-12 h-12 rounded-2xl bg-slate-900/90 border-2 border-cyan-400 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
                 <FlaskConical className="w-6 h-6 text-cyan-400" />
               </div>
-              <span className="text-[11px] font-black text-cyan-100 filter drop-shadow">ガマトト/ラボ</span>
+              <span className="text-[11px] font-black text-cyan-100 filter drop-shadow">ラボ</span>
             </button>
 
             <button
@@ -244,7 +244,7 @@ export const HomeBase: React.FC<HomeBaseProps> = ({
               <span className="absolute -top-2 -right-1 bg-rose-500 text-white font-extrabold text-[9px] px-1.5 py-0.2 rounded-full border border-white animate-bounce">
                 NEW!
               </span>
-              <span className="text-[11px] font-black text-purple-200 filter drop-shadow">特注新種創生</span>
+              <span className="text-[11px] font-black text-purple-200 filter drop-shadow">AI生成</span>
             </button>
           </div>
         </div>

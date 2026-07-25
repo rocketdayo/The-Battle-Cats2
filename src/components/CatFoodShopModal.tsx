@@ -24,11 +24,32 @@ export const CatFoodShopModal: React.FC<CatFoodShopModalProps> = ({
   const [adSecondsLeft, setAdSecondsLeft] = useState<number>(5);
   const [adCompleted, setAdCompleted] = useState<boolean>(false);
 
+  // Realtime clock ticker for countdowns
+  const [now, setNow] = useState<number>(Date.now());
+
+  useEffect(() => {
+    const clockInterval = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => clearInterval(clockInterval);
+  }, []);
+
   // Check 24 hour cooldown for daily bonus
-  const now = Date.now();
   const lastDaily = playerData.lastDailyCatFoodTimestamp || 0;
-  const canClaimDaily = now - lastDaily >= 24 * 60 * 60 * 1000;
-  const hoursLeft = Math.ceil((24 * 60 * 60 * 1000 - (now - lastDaily)) / (1000 * 60 * 60));
+  const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+  const canClaimDaily = now - lastDaily >= DAILY_COOLDOWN_MS;
+  const hoursLeft = Math.max(1, Math.ceil((DAILY_COOLDOWN_MS - (now - lastDaily)) / (1000 * 60 * 60)));
+
+  // Check 1 hour cooldown for CM Video Ad
+  const lastAd = playerData.lastAdWatchTimestamp || 0;
+  const AD_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
+  const canWatchAd = now - lastAd >= AD_COOLDOWN_MS;
+  const adTimeRemainingMs = Math.max(0, AD_COOLDOWN_MS - (now - lastAd));
+  const adMinutesLeft = Math.floor(adTimeRemainingMs / (1000 * 60));
+  const adSecondsLeftInMin = Math.floor((adTimeRemainingMs % (1000 * 60)) / 1000);
+  const adCooldownLabel = adMinutesLeft > 0
+    ? `あと${adMinutesLeft}分`
+    : `あと${adSecondsLeftInMin}秒`;
 
   // Countdown timer for CM Video Ad
   useEffect(() => {
@@ -78,6 +99,7 @@ export const CatFoodShopModal: React.FC<CatFoodShopModalProps> = ({
 
   // Start Video Ad
   const handleStartAd = () => {
+    if (!canWatchAd) return;
     soundManager.playClick();
     setShowAdModal(true);
     setAdSecondsLeft(5);
@@ -92,6 +114,7 @@ export const CatFoodShopModal: React.FC<CatFoodShopModalProps> = ({
     onUpdatePlayerData((prev) => ({
       ...prev,
       catFood: prev.catFood + 20,
+      lastAdWatchTimestamp: Date.now(),
     }));
     setSuccessMsg('CM動画の視聴完了！猫缶 20個をGETしました！');
     setTimeout(() => setSuccessMsg(null), 3500);
@@ -217,15 +240,20 @@ export const CatFoodShopModal: React.FC<CatFoodShopModalProps> = ({
                 <Tv className="w-4 h-4 text-cyan-400" />
                 <span>CM動画を視聴してネコカンGET</span>
               </h3>
-              <p className="text-[10px] text-slate-400 mt-0.5">短い動画CMを見て 猫缶 20個 を獲得！</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">短い動画CMを見て 猫缶 20個 を獲得！ (1時間に1回)</p>
             </div>
 
             <button
               onClick={handleStartAd}
-              className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-1"
+              disabled={!canWatchAd}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
+                canWatchAd
+                  ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-md cursor-pointer'
+                  : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+              }`}
             >
               <Play className="w-3.5 h-3.5 fill-current" />
-              <span>CM再生 (+20)</span>
+              <span>{canWatchAd ? 'CM再生 (+20)' : adCooldownLabel}</span>
             </button>
           </div>
 

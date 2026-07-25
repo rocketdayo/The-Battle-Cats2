@@ -177,7 +177,7 @@ export const AiCatGeneratorModal: React.FC<AiCatGeneratorModalProps> = ({
         <div className="p-4 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 text-white font-black flex items-center justify-between shadow-md">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-amber-300" />
-            <h2 className="text-base">特注新種ニャンコ創生ラボ</h2>
+            <h2 className="text-base">AI生成ニャンコラボ</h2>
           </div>
           <button
             onClick={onClose}
