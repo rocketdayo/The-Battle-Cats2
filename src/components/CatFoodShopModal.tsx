@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Ticket, Gift, Tv, RefreshCw, Sparkles, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Ticket, Gift, Tv, Sparkles, X, Play, Volume2, CheckCircle2 } from 'lucide-react';
 import { soundManager } from '../utils/audio';
 import { PlayerData } from '../types';
 import { claimSerialCode } from '../utils/serialCodes';
@@ -18,13 +18,30 @@ export const CatFoodShopModal: React.FC<CatFoodShopModalProps> = ({
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [serialInput, setSerialInput] = useState<string>('');
-  const [isWatchingAd, setIsWatchingAd] = useState<boolean>(false);
+
+  // Ad modal state
+  const [showAdModal, setShowAdModal] = useState<boolean>(false);
+  const [adSecondsLeft, setAdSecondsLeft] = useState<number>(5);
+  const [adCompleted, setAdCompleted] = useState<boolean>(false);
 
   // Check 24 hour cooldown for daily bonus
   const now = Date.now();
   const lastDaily = playerData.lastDailyCatFoodTimestamp || 0;
   const canClaimDaily = now - lastDaily >= 24 * 60 * 60 * 1000;
   const hoursLeft = Math.ceil((24 * 60 * 60 * 1000 - (now - lastDaily)) / (1000 * 60 * 60));
+
+  // Countdown timer for CM Video Ad
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (showAdModal && adSecondsLeft > 0) {
+      timer = setTimeout(() => {
+        setAdSecondsLeft((prev) => prev - 1);
+      }, 1000);
+    } else if (showAdModal && adSecondsLeft === 0) {
+      setAdCompleted(true);
+    }
+    return () => clearTimeout(timer);
+  }, [showAdModal, adSecondsLeft]);
 
   // Handle Serial Code Claim
   const handleRedeemCode = () => {
@@ -59,22 +76,25 @@ export const CatFoodShopModal: React.FC<CatFoodShopModalProps> = ({
     setTimeout(() => setSuccessMsg(null), 3500);
   };
 
-  // Handle Video Ad Watch
-  const handleWatchAd = () => {
-    if (isWatchingAd) return;
-    setIsWatchingAd(true);
+  // Start Video Ad
+  const handleStartAd = () => {
     soundManager.playClick();
+    setShowAdModal(true);
+    setAdSecondsLeft(5);
+    setAdCompleted(false);
+  };
 
-    setTimeout(() => {
-      soundManager.playVictory();
-      setIsWatchingAd(false);
-      onUpdatePlayerData((prev) => ({
-        ...prev,
-        catFood: prev.catFood + 20,
-      }));
-      setSuccessMsg('CM動画の視聴完了！猫缶 20個をGETしました！');
-      setTimeout(() => setSuccessMsg(null), 3500);
-    }, 2000);
+  // Close Ad & Claim Reward
+  const handleClaimAdReward = () => {
+    if (!adCompleted) return;
+    soundManager.playVictory();
+    setShowAdModal(false);
+    onUpdatePlayerData((prev) => ({
+      ...prev,
+      catFood: prev.catFood + 20,
+    }));
+    setSuccessMsg('CM動画の視聴完了！猫缶 20個をGETしました！');
+    setTimeout(() => setSuccessMsg(null), 3500);
   };
 
   // Handle XP to Cat Food Exchange
@@ -145,20 +165,17 @@ export const CatFoodShopModal: React.FC<CatFoodShopModalProps> = ({
                   <Ticket className="w-4 h-4 text-amber-400" />
                   <span>プレゼントシリアルコード入力</span>
                 </h3>
-                <p className="text-[10px] text-slate-400 mt-0.5">
-                  公式配布コードを入力して猫缶や特典を無料で手に入れよう！
-                </p>
               </div>
             </div>
 
             <div className="flex gap-2">
               <input
                 type="text"
-                placeholder="例: NYANKO50, CATFOOD100"
+                placeholder="シリアルコード または スマホ共有コード"
                 value={serialInput}
                 onChange={(e) => setSerialInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleRedeemCode()}
-                className="flex-1 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs font-black text-amber-300 placeholder-slate-600 focus:outline-none focus:border-amber-400 uppercase tracking-wide"
+                className="flex-1 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs font-black text-amber-300 placeholder-slate-600 focus:outline-none focus:border-amber-400 tracking-wide"
               />
               <button
                 onClick={handleRedeemCode}
@@ -167,10 +184,6 @@ export const CatFoodShopModal: React.FC<CatFoodShopModalProps> = ({
                 <Gift className="w-4 h-4" />
                 <span>受領</span>
               </button>
-            </div>
-
-            <div className="text-[10px] text-slate-500 text-left font-bold flex items-center justify-between">
-              <span>※コード: NYANKO50 / CATFOOD100 / PREMIUM2026</span>
             </div>
           </div>
 
@@ -208,15 +221,11 @@ export const CatFoodShopModal: React.FC<CatFoodShopModalProps> = ({
             </div>
 
             <button
-              onClick={handleWatchAd}
-              disabled={isWatchingAd}
+              onClick={handleStartAd}
               className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-1"
             >
-              {isWatchingAd ? (
-                <span className="animate-pulse">視聴中...</span>
-              ) : (
-                <span>視聴する (+20)</span>
-              )}
+              <Play className="w-3.5 h-3.5 fill-current" />
+              <span>CM再生 (+20)</span>
             </button>
           </div>
 
@@ -244,6 +253,86 @@ export const CatFoodShopModal: React.FC<CatFoodShopModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Video CM Ad Player Modal Overlay */}
+      {showAdModal && (
+        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-slate-900 border-2 border-cyan-500 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+            {/* Ad Header */}
+            <div className="p-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between text-xs text-slate-300">
+              <div className="flex items-center gap-2">
+                <span className="px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[10px]">
+                  AD
+                </span>
+                <span className="font-bold text-cyan-300">スポンサーCM動画再生中</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Volume2 className="w-4 h-4 text-slate-400 animate-pulse" />
+                {!adCompleted ? (
+                  <span className="text-amber-400 font-mono font-bold">
+                    あと {adSecondsLeft} 秒
+                  </span>
+                ) : (
+                  <button
+                    onClick={handleClaimAdReward}
+                    className="p-1 text-slate-400 hover:text-white"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Simulated Video Canvas Frame */}
+            <div className="relative h-64 bg-slate-950 flex flex-col items-center justify-center p-6 text-center overflow-hidden">
+              {/* Background sparkles & lights */}
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-950/40 via-purple-950/40 to-slate-950 animate-pulse" />
+
+              {/* Video Content Graphic */}
+              <div className="relative z-10 space-y-3">
+                <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-tr from-cyan-500 to-amber-400 flex items-center justify-center text-4xl shadow-lg animate-bounce">
+                  🐱
+                </div>
+                <div>
+                  <h4 className="text-lg font-black text-amber-300 tracking-wide">
+                    『超絶キモかわ！ネコ大戦争』
+                  </h4>
+                  <p className="text-xs text-slate-300 mt-1 font-bold">
+                    全国を占領せよ！今すぐ無料で遊べる超人気アプリ！
+                  </p>
+                </div>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="absolute bottom-0 left-0 right-0 h-2 bg-slate-800">
+                <div
+                  className="h-full bg-gradient-to-r from-cyan-400 to-amber-400 transition-all duration-1000 ease-linear"
+                  style={{ width: `${((5 - adSecondsLeft) / 5) * 100}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Ad Footer Button */}
+            <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-col items-center gap-2">
+              {adCompleted ? (
+                <button
+                  onClick={handleClaimAdReward}
+                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-sm shadow-xl animate-bounce cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <CheckCircle2 className="w-5 h-5" />
+                  <span>報酬を受け取る (猫缶 +20)</span>
+                </button>
+              ) : (
+                <div className="text-xs font-bold text-slate-400 py-2 flex items-center gap-2">
+                  <div className="w-3 h-3 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+                  <span>CMを最後までご視聴ください ({adSecondsLeft}s)</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

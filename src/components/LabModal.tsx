@@ -156,11 +156,11 @@ export const LabModal: React.FC<LabModalProps> = ({
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="例: NYANKO50, CATFOOD100"
+                  placeholder="シリアルコード または スマホ共有コード"
                   value={serialInput}
                   onChange={(e) => setSerialInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleRedeemCode()}
-                  className="flex-1 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs font-black text-amber-300 placeholder-slate-600 focus:outline-none focus:border-amber-400 uppercase tracking-wide"
+                  className="flex-1 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs font-black text-amber-300 placeholder-slate-600 focus:outline-none focus:border-amber-400 tracking-wide"
                 />
                 <button
                   onClick={handleRedeemCode}
@@ -172,8 +172,7 @@ export const LabModal: React.FC<LabModalProps> = ({
               </div>
 
               <div className="text-[10px] text-slate-500 text-left font-bold flex items-center justify-between">
-                <span>※大文字・小文字は自動調整されます</span>
-                <span className="text-amber-400/80">サンプル: NYANKO50 / CATFOOD100</span>
+                <span>※英数字のシリアルコードを入力してください</span>
               </div>
             </div>
             {/* Convert Evolution Stones to XP */}

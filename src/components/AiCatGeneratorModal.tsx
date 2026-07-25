@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Sparkles, Wand2, ShieldAlert, CheckCircle2, Sword } from 'lucide-react';
+import { Sparkles, Wand2, ShieldAlert, CheckCircle2, Sword, Copy, Share2 } from 'lucide-react';
 import { soundManager } from '../utils/audio';
 import { CatUnitData } from '../types';
+import { generateCustomCatShareCode } from '../utils/serialCodes';
 
 interface AiCatGeneratorModalProps {
   catFood: number;
@@ -294,6 +295,38 @@ export const AiCatGeneratorModal: React.FC<AiCatGeneratorModalProps> = ({
               <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs text-center font-bold flex items-center justify-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 <span>獲得完了！「編成」でデッキにセットして出撃させよう！</span>
+              </div>
+
+              {/* Cross-Device Share Code Box */}
+              <div className="p-3 rounded-xl bg-slate-900 border border-purple-500/40 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-purple-300">
+                  <div className="flex items-center gap-1.5">
+                    <Share2 className="w-4 h-4 text-cyan-400" />
+                    <span>📱 スマホ・別端末共有コード</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-normal">スマホのシリアルコード画面に入力で解禁！</span>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={generateCustomCatShareCode(createdUnit)}
+                    className="flex-1 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-[10px] font-mono text-cyan-300 truncate focus:outline-none"
+                  />
+                  <button
+                    onClick={() => {
+                      const shareCode = generateCustomCatShareCode(createdUnit);
+                      navigator.clipboard.writeText(shareCode);
+                      soundManager.playVictory();
+                      alert('スマホ・全端末共有コードをコピーしました！スマホのシリアルコード入力画面でペーストしてね！');
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-black text-xs transition-all shadow cursor-pointer flex items-center gap-1"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>共有コードコピー</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}
