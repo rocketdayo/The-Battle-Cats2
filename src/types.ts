@@ -90,6 +90,7 @@ export interface StageEnemySpawn {
   maxSpawns?: number;
   isBossTrigger?: boolean;
   castleHpPercentTrigger?: number; // Trigger spawn when castle HP falls below this %
+  waveName?: string; // e.g. '第一陣', '第二陣', '最終防衛線'
 }
 
 export interface StageData {
@@ -177,6 +178,7 @@ export interface PlayerData {
   cannonLevel: number;
   workerCatLimitLevel: number;
   evolutionStones: number;
+  customUnits?: CatUnitData[];
 }
 
 export type GameView = 'HOME' | 'STAGE_SELECT' | 'DECK_BUILDER' | 'POWER_UP' | 'BATTLE' | 'GACHA' | 'CODEX' | 'LAB' | 'AI_CAT';

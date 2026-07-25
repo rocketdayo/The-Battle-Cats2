@@ -35,12 +35,14 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({
   );
   const [rarityFilter, setRarityFilter] = useState<string>('ALL');
 
+  const allUnits = [...CAT_UNITS, ...(playerData.customUnits || [])];
+
   const deckUnits = playerData.equippedDeck
-    .map((id) => CAT_UNITS.find((u) => u.id === id))
+    .map((id) => allUnits.find((u) => u.id === id))
     .filter((u): u is CatUnitData => u !== undefined);
 
   // Selected unit details
-  const activeSelectedUnit = CAT_UNITS.find((u) => u.id === selectedUnitId);
+  const activeSelectedUnit = allUnits.find((u) => u.id === selectedUnitId);
   const activeUnitProgress = selectedUnitId ? playerData.unlockedUnits[selectedUnitId] : null;
 
   // Toggle unit in deck
@@ -397,7 +399,7 @@ export const DeckBuilder: React.FC<DeckBuilderProps> = ({
 
           {/* Grid of Unlocked Cats */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[380px] overflow-y-auto pr-1">
-            {CAT_UNITS.filter((u) => {
+            {allUnits.filter((u) => {
               const isUnlocked = !!playerData.unlockedUnits[u.id];
               if (!isUnlocked) return false;
               if (rarityFilter !== 'ALL' && u.rarity !== rarityFilter) return false;

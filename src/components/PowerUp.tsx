@@ -26,11 +26,13 @@ export const PowerUp: React.FC<PowerUpProps> = ({
   onOpenEvolution,
   onBackToHome,
 }) => {
+  const allUnits = [...CAT_UNITS, ...(playerData.customUnits || [])];
+
   const [selectedUnitId, setSelectedUnitId] = useState<string>(
     Object.keys(playerData.unlockedUnits)[0] || 'u_chibi'
   );
 
-  const selectedUnit = CAT_UNITS.find((u) => u.id === selectedUnitId);
+  const selectedUnit = allUnits.find((u) => u.id === selectedUnitId);
   const selectedProgress = playerData.unlockedUnits[selectedUnitId];
 
   return (
@@ -78,7 +80,7 @@ export const PowerUp: React.FC<PowerUpProps> = ({
 
           <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">
             {Object.keys(playerData.unlockedUnits).map((unitId) => {
-              const unit = CAT_UNITS.find((u) => u.id === unitId);
+              const unit = allUnits.find((u) => u.id === unitId);
               if (!unit) return null;
 
               const progress = playerData.unlockedUnits[unitId];

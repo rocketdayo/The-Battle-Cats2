@@ -16,6 +16,7 @@ interface BattleUIProps {
   equippedUnits: CatUnitData[];
   playerProgress: Record<string, PlayerUnitProgress>;
   unitCooldowns: Record<string, number>; // remaining seconds
+  activeWaveText?: string | null;
   onDeployUnit: (unitId: string) => void;
   onUpgradeWorkerCat: () => void;
   onFireCannon: () => void;
@@ -38,6 +39,7 @@ export const BattleUI: React.FC<BattleUIProps> = ({
   equippedUnits,
   playerProgress,
   unitCooldowns,
+  activeWaveText,
   onDeployUnit,
   onUpgradeWorkerCat,
   onFireCannon,
@@ -47,7 +49,14 @@ export const BattleUI: React.FC<BattleUIProps> = ({
   onRetreat,
 }) => {
   return (
-    <div className="w-full space-y-3 font-sans select-none">
+    <div className="w-full space-y-3 font-sans select-none relative">
+      {/* Wave Alert Banner */}
+      {activeWaveText && (
+        <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-30 px-6 py-1.5 rounded-full bg-gradient-to-r from-rose-600 via-amber-500 to-rose-600 text-slate-950 font-black text-xs md:text-sm border-2 border-amber-300 shadow-2xl animate-bounce tracking-widest whitespace-nowrap">
+          {activeWaveText}
+        </div>
+      )}
+
       {/* --- Top Control & Resource Bar --- */}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-slate-900/90 p-3 backdrop-blur-md border border-slate-700/60 text-white shadow-xl">
         {/* Stage Name */}

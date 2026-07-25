@@ -5,11 +5,13 @@ import { BookOpen, Shield, Zap, Sparkles, ChevronRight } from 'lucide-react';
 
 interface CodexModalProps {
   playerProgress: Record<string, PlayerUnitProgress>;
+  customUnits?: CatUnitData[];
   onClose: () => void;
 }
 
-export const CodexModal: React.FC<CodexModalProps> = ({ playerProgress, onClose }) => {
-  const [selectedUnit, setSelectedUnit] = useState<CatUnitData>(CAT_UNITS[0]);
+export const CodexModal: React.FC<CodexModalProps> = ({ playerProgress, customUnits = [], onClose }) => {
+  const allUnits = [...CAT_UNITS, ...customUnits];
+  const [selectedUnit, setSelectedUnit] = useState<CatUnitData>(allUnits[0] || CAT_UNITS[0]);
   const [previewStage, setPreviewStage] = useState<1 | 2 | 3>(1);
   const [previewBranch, setPreviewBranch] = useState<'branchA' | 'branchB'>('branchA');
 
@@ -44,7 +46,7 @@ export const CodexModal: React.FC<CodexModalProps> = ({ playerProgress, onClose 
         <div className="grid grid-cols-1 md:grid-cols-3 flex-1 overflow-hidden">
           {/* Left List */}
           <div className="p-3 border-r border-slate-800 overflow-y-auto space-y-2 bg-slate-950/40">
-            {CAT_UNITS.map((unit) => {
+            {allUnits.map((unit) => {
               const unl = !!playerProgress[unit.id];
               return (
                 <button

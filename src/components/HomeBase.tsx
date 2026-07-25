@@ -14,12 +14,14 @@ import {
   ChevronLeft,
   Volume2,
   VolumeX,
+  Wrench,
 } from 'lucide-react';
 
 interface HomeBaseProps {
   playerData: PlayerData;
   onNavigate: (
-    view: 'STAGE_SELECT' | 'POWER_UP' | 'DECK_BUILDER' | 'GACHA' | 'CODEX' | 'LAB' | 'AI_CAT'
+    view: 'STAGE_SELECT' | 'POWER_UP' | 'DECK_BUILDER' | 'GACHA' | 'CODEX' | 'LAB' | 'AI_CAT',
+    gachaTab?: 'nyanko' | 'rare'
   ) => void;
   isMuted: boolean;
   onToggleMute: () => void;
@@ -28,7 +30,7 @@ interface HomeBaseProps {
 const CAT_ADVICES = [
   'アイテムのネコボンを使えば働きネコのレベルが最大の状態でステージを開始できるにゃ！詰まっているステージがあれば使ってみるといいにゃ！',
   '【キャラクター編成】で低コストの「ちびネコ」や「盾ネコ」を壁として大量生産し、後ろから長射程のネコで攻撃するのが勝利の鉄則だにゃ！',
-  '【AI新種創作】では、自分だけのオリジナルネコを無限に生成してデッキに加えることができるにゃ！すごい時代になったにゃ〜！',
+  '【特注新種創生】では、自分だけのオリジナルネコを自由に生成してデッキに加えることができるにゃ！すごい時代になったにゃ〜！',
   '【パワーアップ】でXPを使ってネコをLv.10まで上げると、第2形態へ超進化するにゃ！さらに進化石で第3形態へ分岐進化するにゃ！',
   '敵城に攻撃を当てるとボスが出現することが多いにゃ！あらかじめ壁ネコを十分に溜めてから城を攻めるんだにゃ！',
   '神社ガチャで新しいレアネコを獲得すると戦力が大幅にアップするにゃ！猫缶が貯まったら引いてみるにゃ！',
@@ -38,6 +40,7 @@ const CAT_ADVICES = [
 export const HomeBase: React.FC<HomeBaseProps> = ({
   playerData,
   onNavigate,
+  onOpenDevTools,
   isMuted,
   onToggleMute,
 }) => {
@@ -235,7 +238,7 @@ export const HomeBase: React.FC<HomeBaseProps> = ({
               <span className="absolute -top-2 -right-1 bg-rose-500 text-white font-extrabold text-[9px] px-1.5 py-0.2 rounded-full border border-white animate-bounce">
                 NEW!
               </span>
-              <span className="text-[11px] font-black text-purple-200 filter drop-shadow">AI新種創作</span>
+              <span className="text-[11px] font-black text-purple-200 filter drop-shadow">特注新種創生</span>
             </button>
           </div>
         </div>
@@ -292,7 +295,7 @@ export const HomeBase: React.FC<HomeBaseProps> = ({
             <button
               onClick={() => {
                 soundManager.playClick();
-                onNavigate('GACHA');
+                onNavigate('GACHA', 'nyanko');
               }}
               className="relative px-4 py-2 rounded-2xl bg-lime-500 hover:bg-lime-400 border-2 border-lime-200 text-slate-950 font-black text-xs shadow-lg transition-all flex items-center gap-2 cursor-pointer"
             >
@@ -309,7 +312,7 @@ export const HomeBase: React.FC<HomeBaseProps> = ({
             <button
               onClick={() => {
                 soundManager.playClick();
-                onNavigate('GACHA');
+                onNavigate('GACHA', 'rare');
               }}
               className="relative px-4 py-2 rounded-2xl bg-amber-500 hover:bg-amber-400 border-2 border-amber-200 text-slate-950 font-black text-xs shadow-lg transition-all flex items-center gap-2 cursor-pointer"
             >

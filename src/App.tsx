@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ActiveBattleUnit,
   CatUnitData,
@@ -21,6 +21,8 @@ import { GachaModal } from './components/GachaModal';
 import { CodexModal } from './components/CodexModal';
 import { LabModal } from './components/LabModal';
 import { AiCatGeneratorModal } from './components/AiCatGeneratorModal';
+import { DevToolsModal } from './components/DevToolsModal';
+import { STAGES } from './data/stages';
 import { soundManager } from './utils/audio';
 
 const INITIAL_PLAYER_DATA: PlayerData = {
@@ -69,7 +71,111 @@ export default function App() {
 
   // --- Views & Modals ---
   const [currentView, setCurrentView] = useState<GameView>('HOME');
+  const [gachaInitialTab, setGachaInitialTab] = useState<'nyanko' | 'rare'>('nyanko');
   const [selectedUnitForEvol, setSelectedUnitForEvol] = useState<CatUnitData | null>(null);
+  const [isDevToolsOpen, setIsDevToolsOpen] = useState(false);
+
+  const handleUpdatePlayerData = (
+    updater: Partial<PlayerData> | ((prev: PlayerData) => PlayerData)
+  ) => {
+    setPlayerData((prev) => {
+      if (typeof updater === 'function') {
+        return updater(prev);
+      }
+      return { ...prev, ...updater };
+    });
+  };
+
+  const handleUnlockAllStages = () => {
+    const allStageIds = STAGES.map((s) => s.id);
+    setPlayerData((prev) => ({
+      ...prev,
+      clearedStages: Array.from(new Set([...prev.clearedStages, ...allStageIds])),
+    }));
+  };
+
+  const handleUnlockAllUnits = () => {
+    setPlayerData((prev) => {
+      const newUnlocked = { ...prev.unlockedUnits };
+      CAT_UNITS.forEach((unit) => {
+        if (!newUnlocked[unit.id]) {
+          newUnlocked[unit.id] = {
+            unitId: unit.id,
+            level: 10,
+            currentStage: 2,
+            equippedSkills: [],
+          };
+        }
+      });
+      return { ...prev, unlockedUnits: newUnlocked };
+    });
+  };
+
+  // --- Attach Developer Console Commands ---
+  useEffect(() => {
+    const nyankoDev = {
+      open: () => {
+        setIsDevToolsOpen(true);
+        console.log('🐱 [NyankoDev] デベロッパーツール画面を起動しました！');
+      },
+      setCatFood: (amount: number) => {
+        setPlayerData((prev) => ({ ...prev, catFood: Math.max(0, amount) }));
+        console.log(`🐱 [NyankoDev] ネコカンを ${amount} 個に設定しました！`);
+      },
+      setXP: (amount: number) => {
+        setPlayerData((prev) => ({ ...prev, xp: Math.max(0, amount) }));
+        console.log(`✨ [NyankoDev] 経験値 (XP) を ${amount} に設定しました！`);
+      },
+      setEnergy: (energy: number, maxEnergy?: number) => {
+        setPlayerData((prev) => ({
+          ...prev,
+          energy: Math.max(0, energy),
+          maxEnergy: maxEnergy !== undefined ? Math.max(1, maxEnergy) : prev.maxEnergy,
+        }));
+        console.log(`⚡ [NyankoDev] 統率力を ${energy} に設定しました！`);
+      },
+      unlockAllStages: () => {
+        handleUnlockAllStages();
+        console.log('🚩 [NyankoDev] 全ステージを一括解放しました！');
+      },
+      unlockAllUnits: () => {
+        handleUnlockAllUnits();
+        console.log('🐱 [NyankoDev] 全キャラクターを一括解禁しました！');
+      },
+    };
+
+    // Global Console Command Bindings
+    (window as any).cheat = () => {
+      setIsDevToolsOpen(true);
+      return '🐱 デベロッパーツールを開きます！';
+    };
+    (window as any).openDevTools = () => {
+      setIsDevToolsOpen(true);
+      return '🐱 デベロッパーツールを開きます！';
+    };
+    (window as any).nyanko = nyankoDev;
+
+    // Console Helper Message
+    console.log(
+      '%c🐱 [にゃんこ大戦争 デベロッパーコマンドが有効です]',
+      'color: #f59e0b; font-size: 13px; font-weight: bold;'
+    );
+    console.log(
+      '%c・ cheat() または openDevTools() または nyanko.open() と入力すると数値変更画面が開きます！',
+      'color: #10b981; font-size: 11px; font-weight: bold;'
+    );
+    console.log(
+      '%c・ 直接指定コマンド: nyanko.setCatFood(99999), nyanko.setXP(999999), nyanko.setEnergy(999)',
+      'color: #06b6d4; font-size: 11px;'
+    );
+  }, []);
+
+  const handleNavigate = (view: GameView, gachaTab?: 'nyanko' | 'rare') => {
+    if (gachaTab) {
+      setGachaInitialTab(gachaTab);
+    }
+    setCurrentView(view);
+  };
 
   // --- Battle State ---
   const [activeStage, setActiveStage] = useState<StageData | null>(null);
@@ -95,8 +201,40 @@ export default function App() {
 
   const [battleResult, setBattleResult] = useState<'VICTORY' | 'DEFEAT' | null>(null);
   const [battleTimerSeconds, setBattleTimerSeconds] = useState(0);
+  const [activeWaveText, setActiveWaveText] = useState<string | null>(null);
 
-  // Auto Energy Refill timer
+  // Enemy Spawn State Tracker Ref
+  const enemySpawnStatesRef = useRef<{
+    [spawnKey: string]: {
+      spawnCount: number;
+      lastSpawnTime: number;
+      hpTriggerFired?: boolean;
+    };
+  }>({});
+
+  // Combined base and custom units array
+  const allUnits: CatUnitData[] = [...CAT_UNITS, ...(playerData.customUnits || [])];
+
+  // --- Handle Custom Unit Creation from AI Generator ---
+  const handleCreateCustomUnit = (cost: number, newUnit: CatUnitData) => {
+    if (playerData.catFood < cost) return false;
+
+    setPlayerData((prev) => ({
+      ...prev,
+      catFood: prev.catFood - cost,
+      customUnits: [...(prev.customUnits || []), newUnit],
+      unlockedUnits: {
+        ...prev.unlockedUnits,
+        [newUnit.id]: {
+          unitId: newUnit.id,
+          level: 1,
+          currentStage: 1,
+          equippedSkills: [],
+        },
+      },
+    }));
+    return true;
+  };
   useEffect(() => {
     const interval = setInterval(() => {
       setPlayerData((prev) => {
@@ -136,7 +274,9 @@ export default function App() {
 
     setBattleResult(null);
     setBattleTimerSeconds(0);
+    setActiveWaveText(null);
     setIsPaused(false);
+    enemySpawnStatesRef.current = {};
 
     setCurrentView('BATTLE');
     soundManager.startBgm();
@@ -164,20 +304,66 @@ export default function App() {
         return next;
       });
 
-      // 3. Enemy Spawning Logic
+      // 3. Enemy Spawning Logic (Wave & Multi-Wave Continuous Spawns)
       if (activeStage) {
-        activeStage.enemySpawns.forEach((spawn) => {
+        const castleHpPct = (enemyCastleHp / enemyCastleMaxHp) * 100;
+
+        activeStage.enemySpawns.forEach((spawn, idx) => {
           const enemy = ENEMIES[spawn.enemyId];
           if (!enemy) return;
 
-          // Check if castle HP trigger
-          const castleHpPct = (enemyCastleHp / enemyCastleMaxHp) * 100;
-          const isHpTriggered =
-            spawn.castleHpPercentTrigger && castleHpPct <= spawn.castleHpPercentTrigger;
-          const isTimeTriggered = Math.abs(battleTimerSeconds - spawn.spawnTimeSeconds) < dt;
+          const spawnKey = `spawn_${idx}_${spawn.enemyId}`;
+          if (!enemySpawnStatesRef.current[spawnKey]) {
+            enemySpawnStatesRef.current[spawnKey] = {
+              spawnCount: 0,
+              lastSpawnTime: -999,
+              hpTriggerFired: false,
+            };
+          }
+          const state = enemySpawnStatesRef.current[spawnKey];
 
-          if (isTimeTriggered || isHpTriggered) {
+          // Check maxSpawns limit
+          if (spawn.maxSpawns && state.spawnCount >= spawn.maxSpawns) return;
+
+          let shouldSpawn = false;
+
+          if (spawn.castleHpPercentTrigger) {
+            // HP-based wave trigger
+            if (!state.hpTriggerFired && castleHpPct <= spawn.castleHpPercentTrigger) {
+              shouldSpawn = true;
+              state.hpTriggerFired = true;
+            } else if (
+              state.hpTriggerFired &&
+              spawn.repeatIntervalSeconds &&
+              battleTimerSeconds - state.lastSpawnTime >= spawn.repeatIntervalSeconds
+            ) {
+              shouldSpawn = true;
+            }
+          } else {
+            // Time-based wave trigger
+            if (battleTimerSeconds >= spawn.spawnTimeSeconds) {
+              if (state.spawnCount === 0) {
+                shouldSpawn = true;
+              } else if (
+                spawn.repeatIntervalSeconds &&
+                battleTimerSeconds - state.lastSpawnTime >= spawn.repeatIntervalSeconds
+              ) {
+                shouldSpawn = true;
+              }
+            }
+          }
+
+          if (shouldSpawn) {
+            state.spawnCount += 1;
+            state.lastSpawnTime = battleTimerSeconds;
             spawnEnemyUnit(enemy);
+
+            if (spawn.waveName) {
+              setActiveWaveText(spawn.waveName);
+              setTimeout(() => {
+                setActiveWaveText(null);
+              }, 3000);
+            }
           }
         });
       }
@@ -251,6 +437,17 @@ export default function App() {
 
         return updated.filter((u) => u.hp > 0);
       });
+
+      // Update Floating Damage Texts (float up and fade out within 1.5s)
+      setFloatingTexts((prev) =>
+        prev
+          .map((ft) => ({
+            ...ft,
+            y: ft.y + ft.vy,
+            opacity: ft.opacity - 0.04,
+          }))
+          .filter((ft) => ft.opacity > 0)
+      );
 
       // 5. Check Win / Loss Conditions
       if (enemyCastleHp <= 0 && battleResult === null) {
@@ -331,7 +528,7 @@ export default function App() {
 
   // --- Deploy Unit Handler ---
   const handleDeployUnit = (unitId: string) => {
-    const baseUnit = CAT_UNITS.find((u) => u.id === unitId);
+    const baseUnit = allUnits.find((u) => u.id === unitId);
     if (!baseUnit || money < baseUnit.deployCost) return;
 
     const progress = playerData.unlockedUnits[unitId] || { level: 1, currentStage: 1 };
@@ -548,16 +745,47 @@ export default function App() {
     });
   };
 
-  const handlePerformGacha = (cost: number, count: number) => {
+  const handlePerformGacha = (cost: number, count: number, gachaType: 'nyanko' | 'rare' = 'nyanko') => {
     setPlayerData((prev) => ({ ...prev, catFood: prev.catFood - cost }));
 
     const pulledUnits: CatUnitData[] = [];
     let rewardsXp = 0;
     let rewardsStones = 0;
 
+    // Filter units strictly to official base units (CAT_UNITS only, excluding custom AI units)
+    const baseGachaPool = CAT_UNITS;
+    const legendSuperRarePool = baseGachaPool.filter((u) => u.rarity === 'Legend' || u.rarity === 'SuperRare');
+    const rarePool = baseGachaPool.filter((u) => u.rarity === 'Rare');
+    const normalPool = baseGachaPool.filter((u) => u.rarity === 'Normal');
+
+    // Thresholds based on gacha type
+    // Nyanko Gacha (50 cat food): SuperRare/Legend = 1.0%, SuperRare = 9.0%, Rare = 25.0%, Normal = 65.0%
+    // Rare Gacha (100 cat food): SuperRare/Legend = 3.0%, SuperRare = 15.0%, Rare = 35.0%, Normal = 47.0%
+    const isRareGacha = gachaType === 'rare';
+    const legendRate = isRareGacha ? 3.0 : 1.0;
+    const superRareRate = isRareGacha ? 18.0 : 10.0;
+    const rareRate = isRareGacha ? 53.0 : 35.0;
+
     for (let i = 0; i < count; i++) {
-      const randomIndex = Math.floor(Math.random() * CAT_UNITS.length);
-      const picked = CAT_UNITS[randomIndex];
+      const roll = Math.random() * 100;
+      let targetPool: CatUnitData[] = [];
+
+      if (roll < legendRate && legendSuperRarePool.length > 0) {
+        targetPool = legendSuperRarePool;
+      } else if (roll < superRareRate && legendSuperRarePool.length > 0) {
+        // Super Rare pool
+        const superRareOnly = legendSuperRarePool.filter((u) => u.rarity === 'SuperRare');
+        targetPool = superRareOnly.length > 0 ? superRareOnly : legendSuperRarePool;
+      } else if (roll < rareRate && rarePool.length > 0) {
+        targetPool = rarePool;
+      } else if (normalPool.length > 0) {
+        targetPool = normalPool;
+      } else {
+        targetPool = baseGachaPool;
+      }
+
+      const randomIndex = Math.floor(Math.random() * targetPool.length);
+      const picked = targetPool[randomIndex] || baseGachaPool[0];
       pulledUnits.push(picked);
 
       if (playerData.unlockedUnits[picked.id]) {
@@ -593,7 +821,7 @@ export default function App() {
         {currentView === 'HOME' && (
           <HomeBase
             playerData={playerData}
-            onNavigate={(view) => setCurrentView(view)}
+            onNavigate={handleNavigate}
             isMuted={isMuted}
             onToggleMute={handleToggleMute}
           />
@@ -674,9 +902,10 @@ export default function App() {
               speedMultiplier={speedMultiplier}
               isAutoBattle={isAutoBattle}
               isPaused={isPaused}
-              equippedUnits={CAT_UNITS.filter((u) => playerData.equippedDeck.includes(u.id))}
+              equippedUnits={allUnits.filter((u) => playerData.equippedDeck.includes(u.id))}
               playerProgress={playerData.unlockedUnits}
               unitCooldowns={unitCooldowns}
+              activeWaveText={activeWaveText}
               onDeployUnit={handleDeployUnit}
               onUpgradeWorkerCat={handleUpgradeWorkerCat}
               onFireCannon={handleFireCannon}
@@ -757,6 +986,8 @@ export default function App() {
         <GachaModal
           catFood={playerData.catFood}
           unlockedUnitIds={Object.keys(playerData.unlockedUnits)}
+          allUnits={allUnits}
+          initialTab={gachaInitialTab}
           onClose={() => setCurrentView('HOME')}
           onPerformGacha={handlePerformGacha}
         />
@@ -765,6 +996,7 @@ export default function App() {
       {currentView === 'CODEX' && (
         <CodexModal
           playerProgress={playerData.unlockedUnits}
+          customUnits={playerData.customUnits}
           onClose={() => setCurrentView('HOME')}
         />
       )}
@@ -796,20 +1028,25 @@ export default function App() {
 
       {currentView === 'AI_CAT' && (
         <AiCatGeneratorModal
+          catFood={playerData.catFood}
           onClose={() => setCurrentView('HOME')}
-          onRewardXpAndCatFood={(xp, cf) => {
-            setPlayerData((prev) => ({
-              ...prev,
-              xp: prev.xp + xp,
-              catFood: prev.catFood + cf,
-            }));
-          }}
+          onCreateCustomUnit={handleCreateCustomUnit}
+        />
+      )}
+
+      {isDevToolsOpen && (
+        <DevToolsModal
+          playerData={playerData}
+          onUpdatePlayerData={handleUpdatePlayerData}
+          onUnlockAllStages={handleUnlockAllStages}
+          onUnlockAllUnits={handleUnlockAllUnits}
+          onClose={() => setIsDevToolsOpen(false)}
         />
       )}
 
       {/* Footer */}
       <footer className="w-full max-w-5xl text-center pt-2 text-[11px] text-slate-500">
-        にゃんこ大戦争2 - 本家再現ホーム画面＆AI新種創作
+        にゃんこ大戦争2 - 本家再現ホーム画面＆特注新種創生
       </footer>
     </div>
   );
