@@ -293,7 +293,7 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
               <button
                 onClick={() => {
                   onUnlockAllStages();
-                  showMsg('全153ステージ（隠し含む）を一括クリア済みに設定しました！');
+                  showMsg('全ステージ（隠しステージ含む）を一括クリア済みに設定しました！');
                 }}
                 className="p-3 rounded-xl bg-purple-950/80 hover:bg-purple-900/90 border border-purple-500/60 text-purple-200 font-extrabold text-xs flex items-center justify-between transition-all cursor-pointer shadow-lg"
               >

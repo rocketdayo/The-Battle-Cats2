@@ -44,15 +44,17 @@ export const StageSelect: React.FC<StageSelectProps> = ({
   // Helper to check if a stage is unlocked
   const isStageUnlocked = (stage: StageData): boolean => {
     if (stage.isSecretStage) {
-      // Secret stage unlocks when that chapter's Stage 50 boss is cleared!
       if (stage.chapterId === 1) return playerData.clearedStages.includes('stage_1_50');
       if (stage.chapterId === 2) return playerData.clearedStages.includes('stage_2_50');
       if (stage.chapterId === 3) return playerData.clearedStages.includes('stage_3_50');
     }
-    const stageIndex = STAGES.findIndex((s) => s.id === stage.id);
-    if (stageIndex <= 0) return true; // Stage 1-1 is always unlocked
-    const prevStage = STAGES[stageIndex - 1];
-    return playerData.clearedStages.includes(prevStage.id);
+    if (stage.stageNumber === 1) {
+      if (stage.chapterId === 1) return true;
+      if (stage.chapterId === 2) return isCh2Unlocked;
+      if (stage.chapterId === 3) return isCh3Unlocked;
+    }
+    const prevStageId = `stage_${stage.chapterId}_${stage.stageNumber - 1}`;
+    return playerData.clearedStages.includes(prevStageId);
   };
 
   // Check chapter unlocked status
@@ -66,7 +68,16 @@ export const StageSelect: React.FC<StageSelectProps> = ({
     return { unlocked: false, req: '' };
   };
 
-  const chapterStages = STAGES.filter((s) => s.chapterId === selectedChapter);
+  // Secret stage is hidden until Stage 50 of that chapter is cleared
+  const chapterStages = STAGES.filter((s) => {
+    if (s.chapterId !== selectedChapter) return false;
+    if (s.isSecretStage) {
+      if (s.chapterId === 1 && !playerData.clearedStages.includes('stage_1_50')) return false;
+      if (s.chapterId === 2 && !playerData.clearedStages.includes('stage_2_50')) return false;
+      if (s.chapterId === 3 && !playerData.clearedStages.includes('stage_3_50')) return false;
+    }
+    return true;
+  });
 
   // Dynamic Map node coordinates calculation in percentages for any stage count
   const getNodePosition = (index: number, totalCount: number) => {
@@ -93,6 +104,15 @@ export const StageSelect: React.FC<StageSelectProps> = ({
   const totalClearedInChapter = chapterStages.filter((s) =>
     playerData.clearedStages.includes(s.id)
   ).length;
+
+  // Calculate visible/unlocked total stage count dynamically (starts at 150, increases to 151, 152, 153 as secret stages unlock)
+  const totalVisibleStagesCount = STAGES.filter((s) => {
+    if (!s.isSecretStage) return true;
+    if (s.chapterId === 1) return playerData.clearedStages.includes('stage_1_50');
+    if (s.chapterId === 2) return playerData.clearedStages.includes('stage_2_50');
+    if (s.chapterId === 3) return playerData.clearedStages.includes('stage_3_50');
+    return false;
+  }).length;
 
   // Auto-scroll map container to keep current selected stage centered
   useEffect(() => {
@@ -136,7 +156,7 @@ export const StageSelect: React.FC<StageSelectProps> = ({
                 className="w-5 h-5 text-amber-400 animate-spin"
                 style={{ animationDuration: '12s' }}
               />
-              世界侵略マップ（全{STAGES.length}ステージ）
+              世界侵略マップ（全{totalVisibleStagesCount}ステージ）
             </h2>
             <p className="text-[11px] text-slate-400 font-bold">
               マップを左右にスクロールして拠点を選択し、敵城を攻略せよ！
