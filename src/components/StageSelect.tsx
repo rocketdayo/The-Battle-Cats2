@@ -116,6 +116,18 @@ export const StageSelect: React.FC<StageSelectProps> = ({
       : chapterStages.find((s) => !playerData.clearedStages.includes(s.id)) ||
         chapterStages[0];
 
+  const isTutorial = !playerData.isTutorialCompleted && currentSelectedStage?.id === 'stage_tutorial_0';
+
+  useEffect(() => {
+    if (!playerData.isTutorialCompleted) {
+        const tutorialStage = STAGES.find(s => s.id === 'stage_tutorial_0');
+        if (tutorialStage) {
+            setActiveStage(tutorialStage);
+            setSelectedChapter(1);
+        }
+    }
+  }, [playerData.isTutorialCompleted]);
+  
   const totalClearedInChapter = chapterStages.filter((s) =>
     playerData.clearedStages.includes(s.id)
   ).length;
@@ -228,14 +240,14 @@ export const StageSelect: React.FC<StageSelectProps> = ({
                   if (firstStageOfCh) setActiveStage(firstStageOfCh);
                 }
               }}
-              disabled={!status.unlocked}
+              disabled={!status.unlocked || isTutorial}
               className={`px-5 py-2.5 rounded-2xl text-xs md:text-sm font-black transition-all flex items-center gap-2 ${
                 isSelected
                   ? 'bg-amber-500 text-slate-950 shadow-xl shadow-amber-500/20 scale-105 border-2 border-amber-300 cursor-pointer'
                   : status.unlocked
                   ? 'bg-slate-900/80 text-slate-300 hover:text-amber-300 border border-slate-800 cursor-pointer'
                   : 'bg-slate-950 text-slate-600 border border-slate-900 cursor-not-allowed opacity-60'
-              }`}
+              } ${isTutorial && !isSelected ? 'opacity-30' : ''}`}
             >
               <span>{ch.icon}</span>
               {!status.unlocked && <Lock className="w-3.5 h-3.5 text-slate-500" />}
@@ -267,7 +279,7 @@ export const StageSelect: React.FC<StageSelectProps> = ({
                     setActiveStage(stg);
                   }
                 }}
-                disabled={!unlocked}
+                disabled={!unlocked || isTutorial}
                 className={`flex-shrink-0 px-3.5 py-2 rounded-2xl border-2 transition-all flex items-center gap-2 cursor-pointer min-w-[140px] text-left ${
                   stg.isSecretStage
                     ? 'bg-gradient-to-r from-red-950 via-slate-900 to-rose-950 border-rose-500 shadow-xl shadow-rose-600/30 text-rose-300 animate-pulse ring-2 ring-rose-500/80'
@@ -278,7 +290,7 @@ export const StageSelect: React.FC<StageSelectProps> = ({
                     : unlocked
                     ? 'bg-slate-900/90 border-amber-500/60 text-amber-200 hover:border-amber-400'
                     : 'bg-slate-950 border-slate-800 text-slate-600 opacity-50 cursor-not-allowed'
-                }`}
+                } ${isTutorial && !isSelected ? 'opacity-30' : ''}`}
               >
                 <div
                   className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-xs ${
@@ -639,15 +651,16 @@ export const StageSelect: React.FC<StageSelectProps> = ({
 
           {/* Big Yellow Battle Start Button */}
           <div className="pt-2 flex flex-col items-end gap-2">
-            <div className="flex items-center gap-2 text-sm font-bold text-red-400 py-2 bg-slate-950 px-4 rounded-xl border border-red-900/50">
+            <div className={`flex items-center gap-2 text-sm font-bold py-2 bg-slate-950 px-4 rounded-xl border ${isTutorial ? 'text-amber-300 border-amber-600 animate-pulse' : 'text-red-400 border-red-900/50'}`}>
               <input
                 type="checkbox"
                 checked={isHardMode}
                 onChange={(e) => setIsHardMode(e.target.checked)}
                 id="hardModeToggle"
+                disabled={isTutorial}
                 className="w-5 h-5 accent-red-600 cursor-pointer"
               />
-              <label htmlFor="hardModeToggle" className="cursor-pointer">
+              <label htmlFor="hardModeToggle" className={`cursor-pointer ${isTutorial ? 'opacity-50' : ''}`}>
                 ハードモード (敵強化・2倍数！)
               </label>
             </div>
@@ -669,10 +682,10 @@ export const StageSelect: React.FC<StageSelectProps> = ({
                 playerData.energy >= currentSelectedStage.energyCost
                   ? 'bg-gradient-to-b from-amber-300 via-amber-400 to-amber-500 hover:brightness-110 active:scale-95 text-slate-950'
                   : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed shadow-none'
-              }`}
+              } ${isTutorial ? 'animate-bounce ring-4 ring-white' : ''}`}
             >
               <Play className="w-6 h-6 fill-current" />
-              <span>いざ出撃！（⚡ {currentSelectedStage.energyCost} 消費）</span>
+              <span>{isTutorial ? 'まずはここをタップ！戦闘開始！' : 'いざ出撃！（⚡ ' + currentSelectedStage.energyCost + ' 消費）'}</span>
             </button>
           </div>
         </div>
