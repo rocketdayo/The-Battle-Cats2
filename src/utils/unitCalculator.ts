@@ -5,7 +5,7 @@ import { PASSIVE_SKILLS } from '../data/units';
  * ユニットのレベルアップに必要なXPコストを計算（全画面で統一）
  */
 export function getUnitLevelUpCost(level: number): number {
-  return Math.floor(200 * Math.pow(1.18, level - 1));
+  return Math.floor(200 * Math.pow(1.25, level - 1));
 }
 
 export interface CalculatedUnitStats {
@@ -52,7 +52,7 @@ export function calculateUnitStats(
     displayEvolution = unit.evolutions.stage3Branches[branch];
   }
 
-  const levelMult = Math.pow(1.1, (progress.level || 1) - 1);
+  const levelMult = Math.pow(1.05, (progress.level || 1) - 1);
   let atkMult = displayEvolution.attackMultiplier * levelMult;
   let hpMult = displayEvolution.hpMultiplier * levelMult;
   let speedMult = displayEvolution.speedMultiplier;

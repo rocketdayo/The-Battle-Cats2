@@ -44,6 +44,7 @@ const INITIAL_PLAYER_DATA: PlayerData = {
   cannonLevel: 1,
   workerCatLimitLevel: 1,
   evolutionStones: 5,
+  isTutorialCompleted: false,
 };
 
 export default function App() {
@@ -217,6 +218,10 @@ export default function App() {
     setCurrentView(view);
   };
 
+  const handleSkipTutorial = () => {
+    setPlayerData(prev => ({ ...prev, isTutorialCompleted: true }));
+  };
+
   // --- Battle State ---
   const [activeStage, setActiveStage] = useState<StageData | null>(null);
   const [activeBattleItems, setActiveBattleItems] = useState<{
@@ -251,6 +256,7 @@ export default function App() {
   const [isPaused, setIsPaused] = useState<boolean>(false);
 
   const [battleResult, setBattleResult] = useState<'VICTORY' | 'DEFEAT' | null>(null);
+  const [isHardMode, setIsHardMode] = useState<boolean>(false); // New state
   const [battleTimerSeconds, setBattleTimerSeconds] = useState(0);
   const [activeWaveText, setActiveWaveText] = useState<string | null>(null);
 
@@ -311,10 +317,11 @@ export default function App() {
   // --- Start Battle Handler ---
   const handleStartBattle = (
     stage: StageData,
+    hardMode: boolean, // <-- Updated
     activeItems?: { catBon?: boolean; sniper?: boolean; cpu?: boolean; treasureRadar?: boolean }
   ) => {
     if (playerData.energy < stage.energyCost) return;
-
+    setIsHardMode(hardMode); // <-- Updated
     const itemsUsed = activeItems || {};
     setActiveBattleItems(itemsUsed);
 
@@ -488,6 +495,7 @@ export default function App() {
             state.spawnCount += 1;
             state.lastSpawnTime = battleTimerSeconds;
             spawnEnemyUnit(enemy);
+            if (isHardMode) spawnEnemyUnit(enemy); // Double spawns for Hard Mode
 
             if (spawn.waveName) {
               setActiveWaveText(spawn.waveName);
@@ -764,24 +772,26 @@ export default function App() {
     playerCastleHp,
     isAutoBattle,
     unitCooldowns,
+    isHardMode, // Added
   ]);
 
   // Spawn Enemy Unit Helper
   const spawnEnemyUnit = (enemy: typeof ENEMIES[string]) => {
     const instanceId = `e_${Date.now()}_${Math.random()}`;
+    const multiplier = isHardMode ? 2 : 1; // 2x stats
     const newEnemy: ActiveBattleUnit = {
       instanceId,
       unitId: enemy.id,
       side: 'enemy',
       x: 1000,
       y: (Math.random() - 0.5) * 20,
-      hp: enemy.hp,
-      maxHp: enemy.hp,
-      attack: enemy.attack,
+      hp: enemy.hp * multiplier,
+      maxHp: enemy.hp * multiplier,
+      attack: enemy.attack * multiplier,
       attackRange: enemy.attackRange,
       movementSpeed: enemy.movementSpeed,
       attackCooldown: 0,
-      attackSpeedSeconds: enemy.attackSpeedSeconds,
+      attackSpeedSeconds: enemy.attackSpeedSeconds / multiplier, // Faster attacks (smaller seconds)
       isAreaAttack: enemy.isAreaAttack,
       knockbackCount: 2,
       currentKnockbacks: 0,
@@ -926,6 +936,7 @@ export default function App() {
         catFood: prev.catFood + finalCatFood,
         xp: prev.xp + finalXp,
         evolutionStones: prev.evolutionStones + finalStones,
+        isTutorialCompleted: prev.isTutorialCompleted || activeStage.id === 'stage_tutorial_0',
       };
     });
   };
@@ -1091,6 +1102,7 @@ export default function App() {
             onNavigate={handleNavigate}
             isMuted={isMuted}
             onToggleMute={handleToggleMute}
+            onSkipTutorial={handleSkipTutorial}
           />
         )}
 

@@ -23,6 +23,7 @@ interface StageSelectProps {
   playerData: PlayerData;
   onSelectStage: (
     stage: StageData,
+    isHardMode: boolean, // <-- Updated
     activeItems?: { catBon?: boolean; sniper?: boolean; cpu?: boolean; treasureRadar?: boolean }
   ) => void;
   onOpenEvolution: (unit: CatUnitData) => void;
@@ -42,6 +43,7 @@ export const StageSelect: React.FC<StageSelectProps> = ({
 }) => {
   const [selectedChapter, setSelectedChapter] = useState<number>(1);
   const [activeStage, setActiveStage] = useState<StageData | null>(null);
+  const [isHardMode, setIsHardMode] = useState<boolean>(false); // New state
   const [selectedItems, setSelectedItems] = useState<Record<string, boolean>>({});
   const mapScrollContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -636,7 +638,19 @@ export const StageSelect: React.FC<StageSelectProps> = ({
           </div>
 
           {/* Big Yellow Battle Start Button */}
-          <div className="pt-2 flex justify-end">
+          <div className="pt-2 flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2 text-sm font-bold text-red-400 py-2 bg-slate-950 px-4 rounded-xl border border-red-900/50">
+              <input
+                type="checkbox"
+                checked={isHardMode}
+                onChange={(e) => setIsHardMode(e.target.checked)}
+                id="hardModeToggle"
+                className="w-5 h-5 accent-red-600 cursor-pointer"
+              />
+              <label htmlFor="hardModeToggle" className="cursor-pointer">
+                ハードモード (敵強化・2倍数！)
+              </label>
+            </div>
             <button
               onClick={() => {
                 if (playerData.energy >= currentSelectedStage.energyCost) {
@@ -647,7 +661,7 @@ export const StageSelect: React.FC<StageSelectProps> = ({
                     cpu: !!(selectedItems.cpu && (playerData.items?.cpu || 0) > 0),
                     treasureRadar: !!(selectedItems.treasureRadar && (playerData.items?.treasureRadar || 0) > 0),
                   };
-                  onSelectStage(currentSelectedStage, activeItems);
+                  onSelectStage(currentSelectedStage, isHardMode, activeItems); // Updated
                 }
               }}
               disabled={playerData.energy < currentSelectedStage.energyCost}

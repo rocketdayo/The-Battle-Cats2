@@ -201,6 +201,7 @@ export interface PlayerData {
   items?: Record<string, number>; // Item inventory e.g. { catBon: 3, sniper: 2, cpu: 5, treasureRadar: 1 }
   lastDailyCatFoodTimestamp?: number;
   lastAdWatchTimestamp?: number;
+  isTutorialCompleted?: boolean;
 }
 
 export type GameView = 'HOME' | 'STAGE_SELECT' | 'DECK_BUILDER' | 'POWER_UP' | 'BATTLE' | 'GACHA' | 'CODEX' | 'LAB' | 'ITEM_SHOP' | 'CAT_FOOD_SHOP' | 'AI_CAT';

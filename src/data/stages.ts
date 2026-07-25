@@ -40,6 +40,31 @@ const CHAPTER_3_LANDMARKS = [
   'ラファエル癒やしの泉', 'メタトロン契約の立方体', 'オメガアルファ境界殿', 'アカシックレコード全知殿', '神創主ゼウス・オメガ殿'
 ];
 
+export const TUTORIAL_STAGE: StageData = {
+  id: 'stage_tutorial_0',
+  chapterId: 0,
+  chapterName: 'チュートリアル',
+  stageNumber: 0,
+  name: 'はじめての戦い',
+  description: '基本を学ぶためのステージ。ネコを出撃させて敵を倒そう！',
+  energyCost: 0,
+  enemyCastleHp: 500,
+  playerCastleHp: 3000,
+  castleColor: '#10b981',
+  enemySpawns: [
+    {
+      enemyId: 'e_puppy',
+      spawnTimeSeconds: 2,
+      repeatIntervalSeconds: 10,
+      waveName: 'わんこが登場した！',
+    }
+  ],
+  firstClearRewardCatFood: 100,
+  firstClearRewardXp: 500,
+  bgGradient: ['#d1fae5', '#a7f3d0'],
+  groundColor: '#065f46',
+};
+
 // Helper to generate 50 stages per chapter
 function generate50Stages(
   chapterId: number,
@@ -301,6 +326,7 @@ export const SECRET_STAGE_3: StageData = {
 
 // Export complete 150 Stages (50 for Ch1, 50 for Ch2, 50 for Ch3) + 3 Secret Stages
 export const STAGES: StageData[] = [
+  TUTORIAL_STAGE,
   ...generate50Stages(1, '第1章: 日本全国制覇編', CHAPTER_1_LANDMARKS, 1200, 10, CH1_BG, CH1_GROUND),
   SECRET_STAGE_1,
   ...generate50Stages(2, '第2章: 太陽系＆銀河宇宙攻略編', CHAPTER_2_LANDMARKS, 25000, 30, CH2_BG, CH2_GROUND),

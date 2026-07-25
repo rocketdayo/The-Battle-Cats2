@@ -26,6 +26,7 @@ interface HomeBaseProps {
   isMuted: boolean;
   onToggleMute: () => void;
   onOpenDevTools?: () => void;
+  onSkipTutorial: () => void;
 }
 
 const CAT_ADVICES = [
@@ -44,6 +45,7 @@ export const HomeBase: React.FC<HomeBaseProps> = ({
   onOpenDevTools,
   isMuted,
   onToggleMute,
+  onSkipTutorial,
 }) => {
   const [adviceIndex, setAdviceIndex] = useState(0);
 
@@ -60,6 +62,32 @@ export const HomeBase: React.FC<HomeBaseProps> = ({
 
   return (
     <div className="relative w-full max-w-5xl mx-auto rounded-3xl overflow-hidden shadow-2xl border-4 border-amber-900/60 select-none font-sans min-h-[580px] flex flex-col justify-between bg-[#1b3d36] text-amber-100">
+      {/* チュートリアルポップアップ */}
+      {!playerData.isTutorialCompleted && (
+        <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-amber-100 p-8 rounded-3xl border-4 border-amber-500 shadow-2xl max-w-sm w-full text-center">
+            <h2 className="text-2xl font-black text-amber-900 mb-4">ようこそ！</h2>
+            <p className="text-amber-800 mb-6 font-bold">まずはチュートリアルステージで基本を学ぼう！</p>
+            <div className="flex flex-col gap-3">
+                <button
+                    onClick={() => {
+                        onNavigate('STAGE_SELECT');
+                    }}
+                    className="w-full py-3 rounded-xl bg-lime-500 text-white font-black text-lg"
+                >
+                    チュートリアルへ
+                </button>
+                <button
+                    onClick={onSkipTutorial}
+                    className="w-full py-2 rounded-xl bg-slate-300 text-slate-700 font-bold"
+                >
+                    スキップする
+                </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* --- Japanese Traditional Karakusa / Pattern Background (SVG) --- */}
       <div className="absolute inset-0 opacity-25 pointer-events-none">
         <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
