@@ -109,6 +109,7 @@ export interface StageData {
   firstClearRewardXp: number;
   bgGradient: [string, string];
   groundColor: string;
+  isSecretStage?: boolean;
 }
 
 export interface ActiveBattleUnit {
@@ -135,7 +136,9 @@ export interface ActiveBattleUnit {
   shape: string;
   name: string;
   level: number;
+  rarity?: 'Normal' | 'Rare' | 'SuperRare' | 'Legend';
   isBoss?: boolean;
+  isAttacking?: boolean;
   // Animation properties
   walkFrame: number;
   attackAnimTimer: number;

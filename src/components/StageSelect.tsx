@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { CatUnitData, PlayerData, StageData } from '../types';
 import { STAGES } from '../data/stages';
 import { CAT_UNITS } from '../data/units';
@@ -39,9 +39,16 @@ export const StageSelect: React.FC<StageSelectProps> = ({
 }) => {
   const [selectedChapter, setSelectedChapter] = useState<number>(1);
   const [activeStage, setActiveStage] = useState<StageData | null>(null);
+  const mapScrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Helper to check if a stage is unlocked
   const isStageUnlocked = (stage: StageData): boolean => {
+    if (stage.isSecretStage) {
+      // Secret stage unlocks when that chapter's Stage 50 boss is cleared!
+      if (stage.chapterId === 1) return playerData.clearedStages.includes('stage_1_50');
+      if (stage.chapterId === 2) return playerData.clearedStages.includes('stage_2_50');
+      if (stage.chapterId === 3) return playerData.clearedStages.includes('stage_3_50');
+    }
     const stageIndex = STAGES.findIndex((s) => s.id === stage.id);
     if (stageIndex <= 0) return true; // Stage 1-1 is always unlocked
     const prevStage = STAGES[stageIndex - 1];
@@ -49,8 +56,8 @@ export const StageSelect: React.FC<StageSelectProps> = ({
   };
 
   // Check chapter unlocked status
-  const isCh2Unlocked = playerData.clearedStages.includes('stage_1_6');
-  const isCh3Unlocked = playerData.clearedStages.includes('stage_2_6');
+  const isCh2Unlocked = playerData.clearedStages.includes('stage_1_50') || playerData.clearedStages.includes('stage_1_6');
+  const isCh3Unlocked = playerData.clearedStages.includes('stage_2_50') || playerData.clearedStages.includes('stage_2_6');
 
   const getChapterLockStatus = (chId: number) => {
     if (chId === 1) return { unlocked: true };
@@ -64,11 +71,11 @@ export const StageSelect: React.FC<StageSelectProps> = ({
   // Dynamic Map node coordinates calculation in percentages for any stage count
   const getNodePosition = (index: number, totalCount: number) => {
     if (totalCount <= 1) return { x: 50, y: 50 };
-    // Distribute nodes evenly from 5% to 95%
-    const x = 5 + (index / (totalCount - 1)) * 90;
-    // Alternate wave for y between 28% and 72%
-    const wave = Math.sin((index / (totalCount - 1)) * Math.PI * 2.5);
-    const y = 50 + wave * 22;
+    // Distribute nodes evenly from 2% to 98%
+    const x = 2 + (index / (totalCount - 1)) * 96;
+    // Smooth alternating S-curve wave for y between 25% and 75% to prevent vertical overlap
+    const wave = Math.sin((index / (totalCount - 1)) * Math.PI * 6);
+    const y = 50 + wave * 25;
     return { x, y };
   };
 
@@ -86,6 +93,26 @@ export const StageSelect: React.FC<StageSelectProps> = ({
   const totalClearedInChapter = chapterStages.filter((s) =>
     playerData.clearedStages.includes(s.id)
   ).length;
+
+  // Auto-scroll map container to keep current selected stage centered
+  useEffect(() => {
+    if (!mapScrollContainerRef.current || !currentSelectedStage) return;
+    const stageIdx = chapterStages.findIndex((s) => s.id === currentSelectedStage.id);
+    if (stageIdx === -1) return;
+
+    const pos = nodePositions[stageIdx];
+    if (pos) {
+      const container = mapScrollContainerRef.current;
+      const scrollableWidth = container.scrollWidth - container.clientWidth;
+      if (scrollableWidth > 0) {
+        const targetScrollLeft = (pos.x / 100) * container.scrollWidth - container.clientWidth / 2;
+        container.scrollTo({
+          left: Math.max(0, targetScrollLeft),
+          behavior: 'smooth',
+        });
+      }
+    }
+  }, [currentSelectedStage?.id, selectedChapter]);
 
   return (
     <div className="w-full max-w-5xl mx-auto space-y-5 font-sans text-slate-100 select-none pb-8">
@@ -202,7 +229,9 @@ export const StageSelect: React.FC<StageSelectProps> = ({
                 }}
                 disabled={!unlocked}
                 className={`flex-shrink-0 px-3.5 py-2 rounded-2xl border-2 transition-all flex items-center gap-2 cursor-pointer min-w-[140px] text-left ${
-                  isSelected
+                  stg.isSecretStage
+                    ? 'bg-gradient-to-r from-red-950 via-slate-900 to-rose-950 border-rose-500 shadow-xl shadow-rose-600/30 text-rose-300 animate-pulse ring-2 ring-rose-500/80'
+                    : isSelected
                     ? 'bg-amber-500 text-slate-950 border-amber-300 shadow-lg scale-105 ring-2 ring-amber-300/60'
                     : cleared
                     ? 'bg-slate-900/90 border-emerald-500/60 text-emerald-300 hover:border-emerald-400'
@@ -213,19 +242,21 @@ export const StageSelect: React.FC<StageSelectProps> = ({
               >
                 <div
                   className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-xs ${
-                    isSelected
+                    stg.isSecretStage
+                      ? 'bg-rose-950 text-rose-400 border border-rose-500 animate-bounce'
+                      : isSelected
                       ? 'bg-slate-950 text-amber-400'
                       : cleared
                       ? 'bg-emerald-950 text-emerald-400 border border-emerald-500'
                       : 'bg-slate-950 text-amber-300 border border-amber-500/40'
                   }`}
                 >
-                  {isBoss ? '☠️' : stg.stageNumber}
+                  {stg.isSecretStage ? '💀' : isBoss ? '☠️' : stg.stageNumber}
                 </div>
                 <div className="flex flex-col truncate">
                   <span className="font-extrabold text-xs truncate max-w-[90px]">{stg.name}</span>
                   <span className="text-[10px] font-bold opacity-80">
-                    {cleared ? '✓ クリア' : !unlocked ? '🔒 未開放' : `⚡ ${stg.energyCost}`}
+                    {stg.isSecretStage ? '⚠️ 裏ボス' : cleared ? '✓ クリア' : !unlocked ? '🔒 未開放' : `⚡ ${stg.energyCost}`}
                   </span>
                 </div>
               </button>
@@ -235,15 +266,38 @@ export const StageSelect: React.FC<StageSelectProps> = ({
       </div>
 
       {/* --- SCROLLABLE BATTLE CATS AUTHENTIC MAP CANVAS --- */}
-      <div className="relative w-full rounded-3xl border-4 border-amber-500/60 shadow-2xl overflow-x-auto bg-slate-950 select-none scrollbar-thin scrollbar-thumb-amber-500 scrollbar-track-slate-900">
-        {/* Top Scroll Helper Banner Overlay */}
-        <div className="absolute top-2 left-4 z-30 px-3 py-1 rounded-full bg-slate-950/80 border border-amber-500/40 text-[10px] md:text-xs font-black text-amber-300 backdrop-blur-md flex items-center gap-1.5 shadow-lg pointer-events-none">
-          <span>🗺️ 左右にスクロールしてマップ全体を探索</span>
-          <span className="animate-pulse text-amber-400">◄►</span>
+      <div
+        ref={mapScrollContainerRef}
+        className="relative w-full rounded-3xl border-4 border-amber-500/60 shadow-2xl overflow-x-auto bg-slate-950 select-none scrollbar-thin scrollbar-thumb-amber-500 scrollbar-track-slate-900"
+      >
+        {/* Top Scroll Helper Banner Overlay & Secret Stage Alert */}
+        <div className="absolute top-2 left-4 right-4 z-30 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+          <div className="px-3 py-1 rounded-full bg-slate-950/80 border border-amber-500/40 text-[10px] md:text-xs font-black text-amber-300 backdrop-blur-md shadow-lg flex items-center gap-1.5">
+            <span>🗺️ 左右にスクロールしてマップ全体を探索</span>
+            <span className="animate-pulse text-amber-400">◄►</span>
+          </div>
+
+          {selectedChapter === 1 && playerData.clearedStages.includes('stage_1_50') && (
+            <div className="px-4 py-1 rounded-full bg-gradient-to-r from-red-600 via-rose-500 to-red-600 text-white font-black text-xs md:text-sm border-2 border-amber-300 shadow-2xl animate-pulse flex items-center gap-1.5 pointer-events-auto">
+              <span>⚠️【異次元の歪み出現】富士山頂の隣に第1章裏ボス「ステージ？？？」が出現！</span>
+            </div>
+          )}
+
+          {selectedChapter === 2 && playerData.clearedStages.includes('stage_2_50') && (
+            <div className="px-4 py-1 rounded-full bg-gradient-to-r from-purple-600 via-fuchsia-500 to-purple-600 text-white font-black text-xs md:text-sm border-2 border-amber-300 shadow-2xl animate-pulse flex items-center gap-1.5 pointer-events-auto">
+              <span>⚠️【銀河特異点出現】ブラックホールの隣に第2章裏ボス「ステージ？？？」が出現！</span>
+            </div>
+          )}
+
+          {selectedChapter === 3 && playerData.clearedStages.includes('stage_3_50') && (
+            <div className="px-4 py-1 rounded-full bg-gradient-to-r from-rose-700 via-red-600 to-rose-700 text-white font-black text-xs md:text-sm border-2 border-amber-300 shadow-2xl animate-pulse flex items-center gap-1.5 pointer-events-auto">
+              <span>⚠️【神域崩壊出現】ゼウスの隣に最高峰裏ボス「ステージ？？？」が出現！</span>
+            </div>
+          )}
         </div>
 
         {/* Wide Map Canvas Inner Wrapper */}
-        <div className="relative min-w-[1200px] md:min-w-[1450px] h-80 md:h-96">
+        <div className="relative min-w-[4800px] md:min-w-[5500px] h-80 md:h-96">
           {/* Chapter Background Styling */}
           {selectedChapter === 1 && (
             <div className="absolute inset-0 bg-gradient-to-br from-amber-950/60 via-slate-950 to-rose-950/50 opacity-90">
@@ -295,6 +349,7 @@ export const StageSelect: React.FC<StageSelectProps> = ({
             const isCurrentActive = currentSelectedStage?.id === stage.id;
             const isBossStage =
               stage.stageNumber === 10 || stage.enemySpawns.some((e) => e.isBossTrigger);
+            const isSecret = stage.isSecretStage;
 
             return (
               <div
@@ -321,7 +376,9 @@ export const StageSelect: React.FC<StageSelectProps> = ({
                 {/* Node Circle Pin */}
                 <div
                   className={`relative w-12 h-12 md:w-14 md:h-14 rounded-full border-2 flex items-center justify-center shadow-2xl transition-all ${
-                    isCurrentActive
+                    isSecret
+                      ? 'bg-gradient-to-b from-red-600 via-slate-900 to-black border-rose-500 shadow-[0_0_30px_rgba(239,68,68,0.9)] animate-pulse ring-2 ring-rose-400'
+                      : isCurrentActive
                       ? 'border-amber-300 ring-4 ring-amber-400/50 scale-110'
                       : isCleared
                       ? 'bg-slate-900/90 border-emerald-400/80 text-emerald-400'
@@ -329,13 +386,15 @@ export const StageSelect: React.FC<StageSelectProps> = ({
                       ? 'bg-slate-900/90 border-amber-400 text-amber-300 animate-pulse'
                       : 'bg-slate-950 border-slate-700 text-slate-600'
                   } ${
-                    isBossStage
+                    isBossStage && !isSecret
                       ? 'bg-gradient-to-b from-rose-950 to-slate-900 border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.6)]'
                       : ''
                   }`}
                 >
                   {/* Boss or Normal Icon */}
-                  {isBossStage ? (
+                  {isSecret ? (
+                    <span className="text-xl md:text-2xl animate-bounce">💀</span>
+                  ) : isBossStage ? (
                     <span className="text-xl md:text-2xl animate-pulse">☠️</span>
                   ) : isCleared ? (
                     <Check className="w-6 h-6 text-emerald-400" />
@@ -348,19 +407,27 @@ export const StageSelect: React.FC<StageSelectProps> = ({
                   {/* Stage Number Label Badge */}
                   <div
                     className={`absolute -bottom-5 px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider whitespace-nowrap shadow-md border ${
-                      isCleared
+                      isSecret
+                        ? 'bg-rose-950 border-rose-500 text-rose-300 animate-pulse'
+                        : isCleared
                         ? 'bg-emerald-950 border-emerald-500/50 text-emerald-300'
                         : unlocked
                         ? 'bg-amber-950 border-amber-500/50 text-amber-300'
                         : 'bg-slate-950 border-slate-800 text-slate-600'
                     }`}
                   >
-                    {isBossStage ? 'BOSS' : `STAGE ${stage.stageNumber}`}
+                    {isSecret ? '⚠️ 裏ボス' : isBossStage ? 'BOSS' : `STAGE ${stage.stageNumber}`}
                   </div>
                 </div>
 
                 {/* Stage Name Hover Label */}
-                <span className="mt-6 text-[10px] md:text-xs font-black text-slate-200 bg-slate-950/90 px-2 py-0.5 rounded-lg border border-slate-800 whitespace-nowrap shadow-md">
+                <span
+                  className={`mt-6 text-[10px] md:text-xs font-black px-2 py-0.5 rounded-lg border whitespace-nowrap shadow-md ${
+                    isSecret
+                      ? 'text-rose-300 bg-slate-950/90 border-rose-500/80 shadow-rose-900/50'
+                      : 'text-slate-200 bg-slate-950/90 border-slate-800'
+                  }`}
+                >
                   {stage.name}
                 </span>
               </div>
@@ -371,12 +438,26 @@ export const StageSelect: React.FC<StageSelectProps> = ({
 
       {/* --- SELECTED STAGE DETAIL DRAWER (BATTLE CATS SORTIE PANEL) --- */}
       {currentSelectedStage && (
-        <div className="p-5 rounded-3xl bg-slate-900/95 border-2 border-amber-500/80 shadow-2xl space-y-4 animate-fadeIn relative">
+        <div
+          className={`p-5 rounded-3xl border-2 shadow-2xl space-y-4 animate-fadeIn relative ${
+            currentSelectedStage.isSecretStage
+              ? 'bg-gradient-to-b from-slate-950 via-red-950/40 to-slate-950 border-rose-500 shadow-rose-900/50'
+              : 'bg-slate-900/95 border-amber-500/80'
+          }`}
+        >
           <div className="flex items-start justify-between border-b border-slate-800 pb-3">
             <div>
               <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400 text-amber-300 font-black text-xs">
-                  {currentSelectedStage.chapterName} - STAGE {currentSelectedStage.stageNumber}
+                <span
+                  className={`px-2.5 py-0.5 rounded-full font-black text-xs border ${
+                    currentSelectedStage.isSecretStage
+                      ? 'bg-rose-950 border-rose-500 text-rose-300 animate-pulse'
+                      : 'bg-amber-500/20 border-amber-400 text-amber-300'
+                  }`}
+                >
+                  {currentSelectedStage.isSecretStage
+                    ? '⚠️ 隠し極悪ステージ'
+                    : `${currentSelectedStage.chapterName} - STAGE ${currentSelectedStage.stageNumber}`}
                 </span>
                 {playerData.clearedStages.includes(currentSelectedStage.id) && (
                   <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400 text-emerald-400 font-black text-xs flex items-center gap-1">
@@ -387,7 +468,15 @@ export const StageSelect: React.FC<StageSelectProps> = ({
               <h3 className="text-xl md:text-2xl font-black text-slate-100 mt-1 flex items-center gap-2">
                 <span>{currentSelectedStage.name}</span>
               </h3>
-              <p className="text-xs text-slate-400 mt-1">{currentSelectedStage.description}</p>
+              <p
+                className={`text-xs mt-1 ${
+                  currentSelectedStage.isSecretStage
+                    ? 'text-rose-300 font-bold bg-rose-950/40 p-2 rounded-xl border border-rose-800/50'
+                    : 'text-slate-400'
+                }`}
+              >
+                {currentSelectedStage.description}
+              </p>
             </div>
 
             {/* Energy Cost Pill */}

@@ -270,34 +270,154 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
             </div>
           </div>
 
-          {/* 5. ONE-CLICK ADVANCED CHEATS (一括解放機能) */}
+          {/* 5. ONE-CLICK ADVANCED CHEATS (一括解放＆章進行操作) */}
           <div className="p-4 rounded-2xl bg-slate-950 border border-purple-500/40 space-y-3">
             <h3 className="text-xs font-black text-purple-300 flex items-center gap-1.5 border-b border-purple-900/50 pb-2">
               <Sparkles className="w-4 h-4 text-purple-400" />
-              <span>ワンクリック一括デバッグ操作</span>
+              <span>ワンクリック一括デバッグ・章進捗操作</span>
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button
-                onClick={() => {
-                  onUnlockAllStages();
-                  showMsg('全18ステージを一括解放＆クリア済みに設定しました！');
-                }}
-                className="p-3 rounded-xl bg-purple-950/60 hover:bg-purple-900/80 border border-purple-500/50 text-purple-200 font-extrabold text-xs flex items-center justify-between transition-all cursor-pointer shadow"
-              >
-                <span>🚩 全ステージ一括解放</span>
-                <ChevronRight className="w-4 h-4 text-purple-400" />
-              </button>
 
+            {/* Character & All Stage Unlock */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
                 onClick={() => {
                   onUnlockAllUnits();
                   showMsg('全基本・ガチャネコを一括解禁（Lv.10）に設定しました！');
                 }}
-                className="p-3 rounded-xl bg-purple-950/60 hover:bg-purple-900/80 border border-purple-500/50 text-purple-200 font-extrabold text-xs flex items-center justify-between transition-all cursor-pointer shadow"
+                className="p-3 rounded-xl bg-purple-950/80 hover:bg-purple-900/90 border border-purple-500/60 text-purple-200 font-extrabold text-xs flex items-center justify-between transition-all cursor-pointer shadow-lg"
               >
-                <span>🐱 全ネコキャラ一括解放</span>
+                <span>🐱 全ネコキャラ一括解放 (Lv.10)</span>
                 <ChevronRight className="w-4 h-4 text-purple-400" />
               </button>
+
+              <button
+                onClick={() => {
+                  onUnlockAllStages();
+                  showMsg('全153ステージ（隠し含む）を一括クリア済みに設定しました！');
+                }}
+                className="p-3 rounded-xl bg-purple-950/80 hover:bg-purple-900/90 border border-purple-500/60 text-purple-200 font-extrabold text-xs flex items-center justify-between transition-all cursor-pointer shadow-lg"
+              >
+                <span>🚩 全ステージ一括完全全開放</span>
+                <ChevronRight className="w-4 h-4 text-purple-400" />
+              </button>
+            </div>
+
+            {/* Stage Jump Buttons per Chapter */}
+            <div className="space-y-2 pt-1 border-t border-slate-800">
+              <span className="text-[11px] font-extrabold text-amber-300 block">
+                🗺️ 章別ワンクリック進行ショートカット
+              </span>
+
+              {/* Chapter 1 Buttons */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    const ids: string[] = [];
+                    for (let i = 1; i <= 49; i++) ids.push(`stage_1_${i}`);
+                    onUpdatePlayerData((prev) => ({
+                      ...prev,
+                      clearedStages: Array.from(new Set([...prev.clearedStages, ...ids])),
+                    }));
+                    showMsg('【第1章】Stage 1〜49を一括クリア！（Stage 50ボス直前）');
+                  }}
+                  className="p-2.5 rounded-xl bg-slate-900 hover:bg-amber-950/50 border border-amber-500/40 text-amber-200 font-extrabold text-[11px] flex items-center justify-between transition-all cursor-pointer shadow"
+                >
+                  <span>🗾 第1章: Stage 49までクリア</span>
+                  <span className="text-amber-400 text-[10px]">49/50</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const ids: string[] = [];
+                    for (let i = 1; i <= 50; i++) ids.push(`stage_1_${i}`);
+                    onUpdatePlayerData((prev) => ({
+                      ...prev,
+                      clearedStages: Array.from(new Set([...prev.clearedStages, ...ids])),
+                    }));
+                    showMsg('【第1章】全コンプリート！（第2章＆第1章裏ボス出現！）');
+                  }}
+                  className="p-2.5 rounded-xl bg-amber-950/60 hover:bg-amber-900/80 border border-amber-400/60 text-amber-300 font-black text-[11px] flex items-center justify-between transition-all cursor-pointer shadow"
+                >
+                  <span>👑 第1章全コンプ (裏ボス&第2章解禁)</span>
+                  <span className="text-amber-300 text-[10px]">50/50</span>
+                </button>
+              </div>
+
+              {/* Chapter 2 Buttons */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    const ids: string[] = [];
+                    for (let i = 1; i <= 50; i++) ids.push(`stage_1_${i}`);
+                    for (let i = 1; i <= 49; i++) ids.push(`stage_2_${i}`);
+                    onUpdatePlayerData((prev) => ({
+                      ...prev,
+                      clearedStages: Array.from(new Set([...prev.clearedStages, ...ids])),
+                    }));
+                    showMsg('【第2章】Stage 1〜49を一括クリア！（Stage 50ボス直前）');
+                  }}
+                  className="p-2.5 rounded-xl bg-slate-900 hover:bg-purple-950/50 border border-purple-500/40 text-purple-200 font-extrabold text-[11px] flex items-center justify-between transition-all cursor-pointer shadow"
+                >
+                  <span>🪐 第2章: Stage 49までクリア</span>
+                  <span className="text-purple-400 text-[10px]">49/50</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const ids: string[] = [];
+                    for (let i = 1; i <= 50; i++) ids.push(`stage_1_${i}`);
+                    for (let i = 1; i <= 50; i++) ids.push(`stage_2_${i}`);
+                    onUpdatePlayerData((prev) => ({
+                      ...prev,
+                      clearedStages: Array.from(new Set([...prev.clearedStages, ...ids])),
+                    }));
+                    showMsg('【第2章】全コンプリート！（第3章＆第2章裏ボス出現！）');
+                  }}
+                  className="p-2.5 rounded-xl bg-purple-950/60 hover:bg-purple-900/80 border border-purple-400/60 text-purple-300 font-black text-[11px] flex items-center justify-between transition-all cursor-pointer shadow"
+                >
+                  <span>👑 第2章全コンプ (裏ボス&第3章解禁)</span>
+                  <span className="text-purple-300 text-[10px]">50/50</span>
+                </button>
+              </div>
+
+              {/* Chapter 3 Buttons */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    const ids: string[] = [];
+                    for (let i = 1; i <= 50; i++) ids.push(`stage_1_${i}`);
+                    for (let i = 1; i <= 50; i++) ids.push(`stage_2_${i}`);
+                    for (let i = 1; i <= 49; i++) ids.push(`stage_3_${i}`);
+                    onUpdatePlayerData((prev) => ({
+                      ...prev,
+                      clearedStages: Array.from(new Set([...prev.clearedStages, ...ids])),
+                    }));
+                    showMsg('【第3章】Stage 1〜49を一括クリア！（Stage 50ボス直前）');
+                  }}
+                  className="p-2.5 rounded-xl bg-slate-900 hover:bg-rose-950/50 border border-rose-500/40 text-rose-200 font-extrabold text-[11px] flex items-center justify-between transition-all cursor-pointer shadow"
+                >
+                  <span>🌌 第3章: Stage 49までクリア</span>
+                  <span className="text-rose-400 text-[10px]">49/50</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const ids: string[] = [];
+                    for (let i = 1; i <= 50; i++) ids.push(`stage_1_${i}`);
+                    for (let i = 1; i <= 50; i++) ids.push(`stage_2_${i}`);
+                    for (let i = 1; i <= 50; i++) ids.push(`stage_3_${i}`);
+                    onUpdatePlayerData((prev) => ({
+                      ...prev,
+                      clearedStages: Array.from(new Set([...prev.clearedStages, ...ids])),
+                    }));
+                    showMsg('【第3章】全コンプリート！（第3章最高峰裏ボス出現！）');
+                  }}
+                  className="p-2.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 border border-rose-400/60 text-rose-300 font-black text-[11px] flex items-center justify-between transition-all cursor-pointer shadow"
+                >
+                  <span>👑 第3章全コンプ (最高峰裏ボス解禁)</span>
+                  <span className="text-rose-300 text-[10px]">50/50</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
